@@ -34,7 +34,10 @@ export default function Dashboard({ user, token, onLogout, onNavigate }) {
     }
   };
 
-  const totalQuestions = tests.reduce((sum, test) => sum + (test.question_count || 0), 0);
+  const totalQuestions = tests.reduce(
+    (sum, test) => sum + (test.question_count || 0),
+    0
+  );
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -55,7 +58,9 @@ export default function Dashboard({ user, token, onLogout, onNavigate }) {
               />
 
               <StatCard
-                title={user?.role === "candidate" ? "Available Tests" : "Tests Created"}
+                title={
+                  user?.role === "candidate" ? "Available Tests" : "Tests Created"
+                }
                 value={tests.length}
                 subtitle={user?.role === "candidate" ? "Ready to take" : "Total tests"}
                 bgColor="bg-green-50"
@@ -144,15 +149,34 @@ function TestCard({ test, userRole, onNavigate }) {
             <p className="text-xs text-gray-500 mt-1">By: {test.created_by_name}</p>
           )}
         </div>
-        {userRole === "employer" || userRole === "admin" ? (
-          <Button onClick={() => onNavigate("view-test", test.id)} variant="ghost">
-            View
-          </Button>
-        ) : (
-          <Button onClick={() => onNavigate("take-test", test.id)} variant="success">
-            Take Test
-          </Button>
-        )}
+        <div className="flex flex-col gap-2">
+          {userRole === "employer" || userRole === "admin" ? (
+            <>
+              <Button
+                onClick={() => onNavigate("view-test", test.id)}
+                variant="ghost"
+              >
+                View
+              </Button>
+              <Button
+                onClick={() =>
+                  onNavigate("proctoring-events", test.id, null) // no candidate selected yet
+                }
+                variant="secondary"
+                className="bg-red-50 text-red-700"
+              >
+                View Proctoring Events
+              </Button>
+            </>
+          ) : (
+            <Button
+              onClick={() => onNavigate("take-test", test.id)}
+              variant="success"
+            >
+              Take Test
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );
