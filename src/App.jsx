@@ -7,6 +7,7 @@ import TakeTest from "./components/TakeTest";
 import AdminResults from "./components/AdminResults";
 import ProctoringEvents from "./components/ProctoringEvents";
 import InvitationAccept from "./components/AcceptInvitation";
+import AnswerReview from "./components/ReviewAnswers";
 
 // ViewTest component with Edit button
 function ViewTest({ testId, token, onBack, onEdit }) {
@@ -117,7 +118,7 @@ function ViewTest({ testId, token, onBack, onEdit }) {
   );
 }
 
-function TestResults({ testId, token, onBack }) {
+function TestResults({ testId, token, onBack, onNavigate }) {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(true);
   const [testInfo, setTestInfo] = useState(null);
@@ -197,6 +198,9 @@ function TestResults({ testId, token, onBack }) {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Submitted
                     </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -243,6 +247,14 @@ function TestResults({ testId, token, onBack }) {
                           : result.submitted_at
                           ? new Date(result.submitted_at).toLocaleString()
                           : "N/A"}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <button
+                          onClick={() => onNavigate("answer-review", testId, result.candidate_id)}
+                          className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                        >
+                          View Review
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -348,6 +360,7 @@ export default function App() {
   };
 
   const handleNavigate = (view, testId = null, candidateId = null) => {
+    console.log("Navigating to:", view, "testId:", testId, "candidateId:", candidateId);
     setCurrentView(view);
     setSelectedTestId(testId);
     setSelectedCandidateId(candidateId);
@@ -434,6 +447,7 @@ export default function App() {
           testId={selectedTestId}
           invitationToken={invitationToken}
           onBack={() => handleNavigate("dashboard")}
+          onNavigate={handleNavigate}
         />
       )}
 
@@ -449,6 +463,16 @@ export default function App() {
       {currentView === "test-results" && (
         <TestResults
           testId={selectedTestId}
+          token={token}
+          onBack={() => handleNavigate("dashboard")}
+          onNavigate={handleNavigate}
+        />
+      )}
+
+      {currentView === "answer-review" && (
+        <AnswerReview
+          testId={selectedTestId}
+          candidateId={selectedCandidateId}
           token={token}
           onBack={() => handleNavigate("dashboard")}
         />

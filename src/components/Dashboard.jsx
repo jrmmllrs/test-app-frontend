@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Clock, CheckCircle, Mail, Users, Eye } from "lucide-react";
+import { Plus, Clock, CheckCircle, Mail, Users, Eye, FileText } from "lucide-react";
 
 export default function Dashboard({ user, token, onLogout, onNavigate }) {
   const [tests, setTests] = useState([]);
@@ -166,6 +166,7 @@ export default function Dashboard({ user, token, onLogout, onNavigate }) {
                     <TestCard
                       key={test.id}
                       test={test}
+                      user={user}
                       userRole={user?.role}
                       onNavigate={onNavigate}
                       onInvite={openInviteModal}
@@ -190,13 +191,12 @@ export default function Dashboard({ user, token, onLogout, onNavigate }) {
   );
 }
 
-function TestCard({ test, userRole, onNavigate, onInvite, token }) {
+function TestCard({ test, user, userRole, onNavigate, onInvite, token }) {
   const [invitations, setInvitations] = useState([]);
   const [showInvitations, setShowInvitations] = useState(false);
   const [invitationCount, setInvitationCount] = useState(0);
   const API_BASE_URL = "http://localhost:5000";
 
-  // Fetch invitation count on mount for employer/admin
   useEffect(() => {
     if (userRole === "employer" || userRole === "admin") {
       fetchInvitationCount();
@@ -242,11 +242,9 @@ function TestCard({ test, userRole, onNavigate, onInvite, token }) {
   };
 
   const handleNavigate = (view, id, additionalParam = null) => {
-    // Debug logging
     console.log('Navigation clicked:', { view, id, additionalParam });
     
     try {
-      // Handle different navigation patterns
       if (additionalParam !== null) {
         onNavigate(view, id, additionalParam);
       } else {
@@ -276,6 +274,12 @@ function TestCard({ test, userRole, onNavigate, onInvite, token }) {
         </div>
         {userRole === "candidate" && test.created_by_name && (
           <p className="text-xs text-gray-500">By: {test.created_by_name}</p>
+        )}
+        {userRole === "candidate" && test.is_completed && (
+          <div className="flex items-center gap-2 text-sm text-green-600 font-medium">
+            <CheckCircle size={16} />
+            <span>Completed</span>
+          </div>
         )}
       </div>
 
@@ -324,12 +328,31 @@ function TestCard({ test, userRole, onNavigate, onInvite, token }) {
             </button>
           </div>
         ) : (
-          <button
-            onClick={() => handleNavigate("take-test", test.id)}
-            className="w-full px-4 py-2 text-sm text-white bg-green-600 rounded hover:bg-green-700 font-medium"
-          >
-            Take Test
-          </button>
+          <div className="space-y-2">
+            {test.is_completed ? (
+              <button
+                onClick={() => handleNavigate("answer-review", test.id, user.id)}
+                className="w-full px-4 py-2 text-sm text-white bg-blue-600 rounded hover:bg-blue-700 font-medium flex items-center justify-center gap-2"
+              >
+                <FileText size={16} />
+                View Answer Review
+              </button>
+            ) : test.is_in_progress ? (
+              <button
+                onClick={() => handleNavigate("take-test", test.id)}
+                className="w-full px-4 py-2 text-sm text-white bg-yellow-600 rounded hover:bg-yellow-700 font-medium"
+              >
+                Continue Test
+              </button>
+            ) : (
+              <button
+                onClick={() => handleNavigate("take-test", test.id)}
+                className="w-full px-4 py-2 text-sm text-white bg-green-600 rounded hover:bg-green-700 font-medium"
+              >
+                Take Test
+              </button>
+            )}
+          </div>
         )}
       </div>
 
