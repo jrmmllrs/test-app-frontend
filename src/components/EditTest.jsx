@@ -24,7 +24,19 @@ export default function EditTest({ testId, token, onBack }) {
       });
       const data = await response.json();
       if (data.success) {
-        setTest(data.test);
+        // Normalize question types and ensure proper structure
+        const normalizedTest = {
+          ...data.test,
+          questions: data.test.questions.map(q => ({
+            ...q,
+            // If question_type is missing or invalid, determine by checking if options exist
+question_type: q.question_type || "multiple_choice",
+            // Ensure options array exists for multiple choice
+            options: q.question_type === "short_answer" ? [] : (q.options || ["", "", "", ""]),
+            correct_answer: q.correct_answer || "",
+          }))
+        };
+        setTest(normalizedTest);
       } else {
         setError("Failed to load test");
       }
@@ -46,6 +58,31 @@ export default function EditTest({ testId, token, onBack }) {
       ...updatedQuestions[index],
       [field]: value,
     };
+    setTest((prev) => ({ ...prev, questions: updatedQuestions }));
+  };
+
+  const handleQuestionTypeChange = (index, newType) => {
+    const updatedQuestions = [...test.questions];
+    const question = updatedQuestions[index];
+    
+    if (newType === "short_answer") {
+      // Converting to short answer - keep only the correct_answer text
+      updatedQuestions[index] = {
+        ...question,
+        question_type: "short_answer",
+        options: [],
+        correct_answer: question.correct_answer || "",
+      };
+    } else {
+      // Converting to multiple choice - initialize with empty options
+      updatedQuestions[index] = {
+        ...question,
+        question_type: "multiple_choice",
+        options: ["", "", "", ""],
+        correct_answer: "",
+      };
+    }
+    
     setTest((prev) => ({ ...prev, questions: updatedQuestions }));
   };
 
@@ -73,6 +110,7 @@ export default function EditTest({ testId, token, onBack }) {
       questions: [...prev.questions, newQuestion],
     }));
   };
+
   const removeQuestion = (index) => {
     const updatedQuestions = test.questions.filter((_, i) => i !== index);
     setTest((prev) => ({ ...prev, questions: updatedQuestions }));
@@ -129,22 +167,29 @@ export default function EditTest({ testId, token, onBack }) {
         return false;
       }
 
-      const validOptions = q.options.filter((opt) => opt.trim() !== "");
-      if (validOptions.length < 2) {
-        setError(`Question ${i + 1} must have at least 2 options`);
-        return false;
-      }
+      if (q.question_type === "multiple_choice") {
+        const validOptions = q.options.filter((opt) => opt.trim() !== "");
+        if (validOptions.length < 2) {
+          setError(`Question ${i + 1} must have at least 2 options`);
+          return false;
+        }
 
-      if (!q.correct_answer || !q.correct_answer.trim()) {
-        setError(`Question ${i + 1} must have a correct answer selected`);
-        return false;
-      }
+        if (!q.correct_answer || !q.correct_answer.trim()) {
+          setError(`Question ${i + 1} must have a correct answer selected`);
+          return false;
+        }
 
-      if (!q.options.includes(q.correct_answer)) {
-        setError(
-          `Question ${i + 1} correct answer must match one of the options`
-        );
-        return false;
+        if (!q.options.includes(q.correct_answer)) {
+          setError(
+            `Question ${i + 1} correct answer must match one of the options`
+          );
+          return false;
+        }
+      } else if (q.question_type === "short_answer") {
+        if (!q.correct_answer || !q.correct_answer.trim()) {
+          setError(`Question ${i + 1} must have a correct answer`);
+          return false;
+        }
       }
     }
 
@@ -162,11 +207,21 @@ export default function EditTest({ testId, token, onBack }) {
     setSaving(true);
 
     try {
-      // Clean up questions - remove empty options
-      const cleanedQuestions = test.questions.map((q) => ({
-        ...q,
-        options: q.options.filter((opt) => opt.trim() !== ""),
-      }));
+      // Clean up questions based on type
+      const cleanedQuestions = test.questions.map((q) => {
+        if (q.question_type === "multiple_choice") {
+          return {
+            ...q,
+            options: q.options.filter((opt) => opt.trim() !== ""),
+          };
+        } else {
+          // For short answer, ensure options is empty array
+          return {
+            ...q,
+            options: [],
+          };
+        }
+      });
 
       const response = await fetch(`${API_BASE_URL}/api/tests/${testId}`, {
         method: "PUT",
@@ -324,6 +379,22 @@ export default function EditTest({ testId, token, onBack }) {
 
                   <div className="mb-4">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Question Type *
+                    </label>
+                    <select
+                      value={question.question_type}
+                      onChange={(e) =>
+                        handleQuestionTypeChange(qIndex, e.target.value)
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="multiple_choice">Multiple Choice</option>
+                      <option value="short_answer">Short Answer</option>
+                    </select>
+                  </div>
+
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
                       Question Text *
                     </label>
                     <textarea
@@ -341,73 +412,96 @@ export default function EditTest({ testId, token, onBack }) {
                     />
                   </div>
 
-                  <div className="mb-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="block text-sm font-medium text-gray-700">
-                        Options * (at least 2)
-                      </label>
-                      <button
-                        onClick={() => addOption(qIndex)}
-                        className="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700"
-                      >
-                        + Add Option
-                      </button>
-                    </div>
-                    <div className="space-y-2">
-                      {question.options.map((option, oIndex) => (
-                        <div key={oIndex} className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-gray-600 w-6">
-                            {String.fromCharCode(65 + oIndex)}.
-                          </span>
-                          <input
-                            type="text"
-                            value={option}
-                            onChange={(e) =>
-                              handleOptionChange(qIndex, oIndex, e.target.value)
-                            }
-                            className="flex-1 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            placeholder={`Option ${String.fromCharCode(
-                              65 + oIndex
-                            )}`}
-                          />
-                          {question.options.length > 2 && (
-                            <button
-                              onClick={() => removeOption(qIndex, oIndex)}
-                              className="px-2 py-1 bg-red-500 text-white text-sm rounded hover:bg-red-600"
-                            >
-                              ✕
-                            </button>
-                          )}
+                  {question.question_type === "multiple_choice" ? (
+                    <>
+                      <div className="mb-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="block text-sm font-medium text-gray-700">
+                            Options * (at least 2)
+                          </label>
+                          <button
+                            onClick={() => addOption(qIndex)}
+                            className="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700"
+                          >
+                            + Add Option
+                          </button>
                         </div>
-                      ))}
-                    </div>
-                  </div>
+                        <div className="space-y-2">
+                          {question.options.map((option, oIndex) => (
+                            <div key={oIndex} className="flex items-center gap-2">
+                              <span className="text-sm font-medium text-gray-600 w-6">
+                                {String.fromCharCode(65 + oIndex)}.
+                              </span>
+                              <input
+                                type="text"
+                                value={option}
+                                onChange={(e) =>
+                                  handleOptionChange(qIndex, oIndex, e.target.value)
+                                }
+                                className="flex-1 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                placeholder={`Option ${String.fromCharCode(
+                                  65 + oIndex
+                                )}`}
+                              />
+                              {question.options.length > 2 && (
+                                <button
+                                  onClick={() => removeOption(qIndex, oIndex)}
+                                  className="px-2 py-1 bg-red-500 text-white text-sm rounded hover:bg-red-600"
+                                >
+                                  ✕
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Correct Answer *
-                    </label>
-                    <select
-                      value={question.correct_answer}
-                      onChange={(e) =>
-                        handleQuestionChange(
-                          qIndex,
-                          "correct_answer",
-                          e.target.value
-                        )
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Select correct answer</option>
-                      {question.options
-                        .filter((opt) => opt.trim() !== "")
-                        .map((option, oIndex) => (
-                          <option key={oIndex} value={option}>
-                            {String.fromCharCode(65 + oIndex)}. {option}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Correct Answer *
+                        </label>
+                        <select
+                          value={question.correct_answer}
+                          onChange={(e) =>
+                            handleQuestionChange(
+                              qIndex,
+                              "correct_answer",
+                              e.target.value
+                            )
+                          }
+                          className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="">Select correct answer</option>
+                          {question.options
+                            .filter((opt) => opt.trim() !== "")
+                            .map((option, oIndex) => (
+                              <option key={oIndex} value={option}>
+                                {String.fromCharCode(65 + oIndex)}. {option}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+                    </>
+                  ) : (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Correct Answer *
+                      </label>
+                      <input
+                        type="text"
+                        value={question.correct_answer}
+                        onChange={(e) =>
+                          handleQuestionChange(
+                            qIndex,
+                            "correct_answer",
+                            e.target.value
+                          )
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Enter the correct answer"
+                      />
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
