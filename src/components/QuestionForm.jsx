@@ -110,6 +110,15 @@ export default function QuestionForm({
           />
         )}
 
+        <TextArea
+          label="Explanation (Optional)"
+          name="explanation"
+          value={currentQuestion.explanation}
+          onChange={onQuestionChange}
+          rows="3"
+          placeholder="Explain why this is the correct answer. This will be shown to candidates after they complete the test."
+        />
+
         <div className="flex gap-2 justify-end pt-4">
           <Button variant="secondary" onClick={onCancel} icon={X}>
             Cancel

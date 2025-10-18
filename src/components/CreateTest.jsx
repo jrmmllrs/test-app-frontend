@@ -22,6 +22,7 @@ export default function CreateTest({ user, token, onBack }) {
     question_type: "multiple_choice",
     options: ["", "", "", ""],
     correct_answer: "",
+    explanation: "", // ADDED: explanation field
   });
   const [editingIndex, setEditingIndex] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -105,6 +106,7 @@ export default function CreateTest({ user, token, onBack }) {
       question_type: "multiple_choice",
       options: ["", "", "", ""],
       correct_answer: "",
+      explanation: "", // ADDED: reset explanation
     });
     setShowQuestionForm(false);
     setMessage({ type: "success", text: "Question saved!" });
@@ -127,6 +129,7 @@ export default function CreateTest({ user, token, onBack }) {
       question_type: "multiple_choice",
       options: ["", "", "", ""],
       correct_answer: "",
+      explanation: "", // ADDED: reset explanation
     });
     setEditingIndex(null);
     setShowQuestionForm(false);
@@ -154,6 +157,7 @@ export default function CreateTest({ user, token, onBack }) {
             q.question_type === "multiple_choice" || q.question_type === "true_false"
               ? JSON.stringify(q.options.filter((opt) => opt.trim() !== ""))
               : null,
+          explanation: q.explanation || null, // ADDED: include explanation
         })),
       };
 

@@ -1,6 +1,9 @@
-import React from "react";
+import React, { useState } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 
 export default function QuestionPreview({ question, index, onEdit, onDelete }) {
+  const [expandedExplanation, setExpandedExplanation] = useState(false);
+
   return (
     <div className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
       <div className="flex justify-between items-start mb-2">
@@ -36,9 +39,30 @@ export default function QuestionPreview({ question, index, onEdit, onDelete }) {
                 ))}
             </div>
           )}
+
+          {question.explanation && (
+            <div className="mt-3 border-t border-gray-200 pt-3">
+              <button
+                onClick={() => setExpandedExplanation(!expandedExplanation)}
+                className="flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-700 font-medium"
+              >
+                {expandedExplanation ? (
+                  <ChevronUp size={16} />
+                ) : (
+                  <ChevronDown size={16} />
+                )}
+                {expandedExplanation ? "Hide" : "Show"} Explanation
+              </button>
+              {expandedExplanation && (
+                <p className="mt-2 text-sm text-gray-700 bg-indigo-50 p-3 rounded">
+                  {question.explanation}
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 ml-4">
           <button
             onClick={onEdit}
             className="px-3 py-1 text-sm text-indigo-600 hover:bg-indigo-50 rounded"

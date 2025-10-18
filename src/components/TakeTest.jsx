@@ -140,25 +140,27 @@ function useProctoring(
 }
 
 export default function TakeTest({
+  user,
   token,
   testId,
   onBack,
+  onNavigate,
   invitationToken = null,
 }) {
   const [test, setTest] = useState(null);
   const [answers, setAnswers] = useState({});
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [submission, setSubmission] = useState(null);
   const [message, setMessage] = useState({ type: "", text: "" });
   const [proctoringSettings, setProctoringSettings] = useState(null);
   const [fullscreenWarning, setFullscreenWarning] = useState(false);
   const [testBlocked, setTestBlocked] = useState(false);
   const [testStatus, setTestStatus] = useState(null);
   
-  // KEY FIX: Store the initial time in state, calculated only once
   const [initialTime, setInitialTime] = useState(null);
 
-  // Refs for tracking values on unmount
   const answersRef = useRef({});
   const timeLeftRef = useRef(null);
   const testRef = useRef(null);
@@ -172,7 +174,6 @@ export default function TakeTest({
         checkTestStatus();
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [testId, invitationToken]);
 
   const checkTestStatus = async () => {
@@ -259,7 +260,6 @@ export default function TakeTest({
           ...data.test,
         };
         
-        // KEY FIX: Calculate and set initial time only once when test is fetched
         let calculatedTime;
         if (timeRemaining !== null && timeRemaining !== undefined) {
           calculatedTime = timeRemaining;
@@ -316,11 +316,12 @@ export default function TakeTest({
       if (data.success) {
         if (document.fullscreenElement) document.exitFullscreen();
         setTestStatus("completed");
+        setSubmitted(true);
+        setSubmission(data.submission);
         setMessage({
           type: "success",
-          text: `Test submitted! Score: ${data.submission.score}% - ${data.submission.remarks}`,
+          text: "Test submitted successfully!",
         });
-        setTimeout(() => onBack(), 3000);
       } else {
         setMessage({ type: "error", text: data.message });
         setSubmitting(false);
@@ -330,7 +331,7 @@ export default function TakeTest({
       setMessage({ type: "error", text: "Failed to submit test" });
       setSubmitting(false);
     }
-  }, [submitting, test, answers, token, testId, invitationToken, onBack]);
+  }, [submitting, test, answers, token, testId, invitationToken]);
 
   useProctoring(
     testId,
@@ -341,10 +342,8 @@ export default function TakeTest({
     proctoringSettings?.enable_proctoring
   );
 
-  // KEY FIX: Use the initialTime state directly instead of calling getInitialTime()
   const timeLeft = useTimer(initialTime, handleSubmit);
 
-  // Update refs whenever state changes
   useEffect(() => {
     answersRef.current = answers;
   }, [answers]);
@@ -409,7 +408,6 @@ export default function TakeTest({
     }
   }, [answers, test, testId, token, testStatus]);
 
-  // Auto-save progress every 30 seconds
   useEffect(() => {
     if (testStatus === "in_progress" || testStatus === "not_started") {
       const interval = setInterval(() => saveProgress(), 30000);
@@ -417,7 +415,6 @@ export default function TakeTest({
     }
   }, [saveProgress, testStatus]);
 
-  // Save progress when navigating away
   useEffect(() => {
     const handleBeforeUnload = () => {
       if (testStatusRef.current !== "completed" && timeLeftRef.current > 0) {
@@ -479,6 +476,69 @@ export default function TakeTest({
     );
   }
 
+  // Show success screen after submission
+  if (submitted && submission) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="max-w-2xl w-full">
+          <div className="bg-white rounded-lg shadow-lg p-8">
+            <div className="text-center">
+              <div className="mb-4">
+                <CheckCircle className="mx-auto h-16 w-16 text-green-500" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">
+                Test Submitted Successfully!
+              </h2>
+              
+              <div className="bg-blue-50 rounded-lg p-6 mb-6">
+                <div className="grid grid-cols-2 gap-4 text-center">
+                  <div>
+                    <p className="text-sm text-gray-600">Your Score</p>
+                    <p className="text-3xl font-bold text-blue-600">
+                      {submission.score}%
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Correct Answers</p>
+                    <p className="text-3xl font-bold text-green-600">
+                      {submission.correct_answers}/{submission.total_questions}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <p className="text-lg font-semibold text-gray-800">
+                    {submission.remarks}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {user && onNavigate && (
+                  <button
+                    onClick={() => onNavigate("answer-review", testId, user.id)}
+                    className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium flex items-center justify-center gap-2"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    View Detailed Answer Review
+                  </button>
+                )}
+                
+                <button
+                  onClick={onBack}
+                  className="w-full px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-medium"
+                >
+                  Back to Dashboard
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-white shadow-sm border-b">
@@ -525,7 +585,7 @@ export default function TakeTest({
       </nav>
 
       <div className="py-8 px-4 max-w-4xl mx-auto">
-        {message.text && (
+        {message.text && !submitted && (
           <div
             className={`mb-4 p-4 rounded-lg ${
               message.type === "success"

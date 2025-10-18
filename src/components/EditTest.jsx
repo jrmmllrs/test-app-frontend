@@ -5,7 +5,7 @@ export default function EditTest({ testId, token, onBack }) {
     title: "",
     description: "",
     time_limit: 30,
-    questions: []
+    questions: [],
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -37,16 +37,16 @@ export default function EditTest({ testId, token, onBack }) {
   };
 
   const handleTestInfoChange = (field, value) => {
-    setTest(prev => ({ ...prev, [field]: value }));
+    setTest((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleQuestionChange = (index, field, value) => {
     const updatedQuestions = [...test.questions];
     updatedQuestions[index] = {
       ...updatedQuestions[index],
-      [field]: value
+      [field]: value,
     };
-    setTest(prev => ({ ...prev, questions: updatedQuestions }));
+    setTest((prev) => ({ ...prev, questions: updatedQuestions }));
   };
 
   const handleOptionChange = (questionIndex, optionIndex, value) => {
@@ -55,38 +55,39 @@ export default function EditTest({ testId, token, onBack }) {
     options[optionIndex] = value;
     updatedQuestions[questionIndex] = {
       ...updatedQuestions[questionIndex],
-      options
+      options,
     };
-    setTest(prev => ({ ...prev, questions: updatedQuestions }));
+    setTest((prev) => ({ ...prev, questions: updatedQuestions }));
   };
 
   const addQuestion = () => {
     const newQuestion = {
       question_text: "",
+      question_type: "multiple_choice",
       options: ["", "", "", ""],
-      correct_answer: ""
+      correct_answer: "",
+      explanation: "",
     };
-    setTest(prev => ({
+    setTest((prev) => ({
       ...prev,
-      questions: [...prev.questions, newQuestion]
+      questions: [...prev.questions, newQuestion],
     }));
   };
-
   const removeQuestion = (index) => {
     const updatedQuestions = test.questions.filter((_, i) => i !== index);
-    setTest(prev => ({ ...prev, questions: updatedQuestions }));
+    setTest((prev) => ({ ...prev, questions: updatedQuestions }));
   };
 
   const addOption = (questionIndex) => {
     const updatedQuestions = [...test.questions];
     updatedQuestions[questionIndex].options.push("");
-    setTest(prev => ({ ...prev, questions: updatedQuestions }));
+    setTest((prev) => ({ ...prev, questions: updatedQuestions }));
   };
 
   const removeOption = (questionIndex, optionIndex) => {
     const updatedQuestions = [...test.questions];
     const question = updatedQuestions[questionIndex];
-    
+
     if (question.options.length <= 2) {
       setError("A question must have at least 2 options");
       setTimeout(() => setError(""), 3000);
@@ -95,13 +96,13 @@ export default function EditTest({ testId, token, onBack }) {
 
     const removedOption = question.options[optionIndex];
     question.options = question.options.filter((_, i) => i !== optionIndex);
-    
+
     // If removed option was correct answer, clear correct answer
     if (question.correct_answer === removedOption) {
       question.correct_answer = "";
     }
-    
-    setTest(prev => ({ ...prev, questions: updatedQuestions }));
+
+    setTest((prev) => ({ ...prev, questions: updatedQuestions }));
   };
 
   const validateTest = () => {
@@ -122,13 +123,13 @@ export default function EditTest({ testId, token, onBack }) {
 
     for (let i = 0; i < test.questions.length; i++) {
       const q = test.questions[i];
-      
+
       if (!q.question_text.trim()) {
         setError(`Question ${i + 1} text is required`);
         return false;
       }
 
-      const validOptions = q.options.filter(opt => opt.trim() !== "");
+      const validOptions = q.options.filter((opt) => opt.trim() !== "");
       if (validOptions.length < 2) {
         setError(`Question ${i + 1} must have at least 2 options`);
         return false;
@@ -140,7 +141,9 @@ export default function EditTest({ testId, token, onBack }) {
       }
 
       if (!q.options.includes(q.correct_answer)) {
-        setError(`Question ${i + 1} correct answer must match one of the options`);
+        setError(
+          `Question ${i + 1} correct answer must match one of the options`
+        );
         return false;
       }
     }
@@ -160,9 +163,9 @@ export default function EditTest({ testId, token, onBack }) {
 
     try {
       // Clean up questions - remove empty options
-      const cleanedQuestions = test.questions.map(q => ({
+      const cleanedQuestions = test.questions.map((q) => ({
         ...q,
-        options: q.options.filter(opt => opt.trim() !== "")
+        options: q.options.filter((opt) => opt.trim() !== ""),
       }));
 
       const response = await fetch(`${API_BASE_URL}/api/tests/${testId}`, {
@@ -175,7 +178,7 @@ export default function EditTest({ testId, token, onBack }) {
           title: test.title,
           description: test.description,
           time_limit: test.time_limit,
-          questions: cleanedQuestions
+          questions: cleanedQuestions,
         }),
       });
 
@@ -235,7 +238,7 @@ export default function EditTest({ testId, token, onBack }) {
 
         <div className="bg-white rounded-lg shadow p-6 mb-6">
           <h2 className="text-xl font-semibold mb-4">Test Information</h2>
-          
+
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Test Title *
@@ -255,7 +258,9 @@ export default function EditTest({ testId, token, onBack }) {
             </label>
             <textarea
               value={test.description}
-              onChange={(e) => handleTestInfoChange("description", e.target.value)}
+              onChange={(e) =>
+                handleTestInfoChange("description", e.target.value)
+              }
               rows="3"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="Enter test description"
@@ -269,7 +274,12 @@ export default function EditTest({ testId, token, onBack }) {
             <input
               type="number"
               value={test.time_limit}
-              onChange={(e) => handleTestInfoChange("time_limit", parseInt(e.target.value) || 1)}
+              onChange={(e) =>
+                handleTestInfoChange(
+                  "time_limit",
+                  parseInt(e.target.value) || 1
+                )
+              }
               min="1"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
@@ -289,14 +299,21 @@ export default function EditTest({ testId, token, onBack }) {
 
           {test.questions.length === 0 ? (
             <div className="text-center py-8 bg-gray-50 rounded">
-              <p className="text-gray-600">No questions yet. Add your first question!</p>
+              <p className="text-gray-600">
+                No questions yet. Add your first question!
+              </p>
             </div>
           ) : (
             <div className="space-y-6">
               {test.questions.map((question, qIndex) => (
-                <div key={qIndex} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                <div
+                  key={qIndex}
+                  className="border border-gray-200 rounded-lg p-4 bg-gray-50"
+                >
                   <div className="flex items-start justify-between mb-3">
-                    <h3 className="font-medium text-lg">Question {qIndex + 1}</h3>
+                    <h3 className="font-medium text-lg">
+                      Question {qIndex + 1}
+                    </h3>
                     <button
                       onClick={() => removeQuestion(qIndex)}
                       className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700"
@@ -311,7 +328,13 @@ export default function EditTest({ testId, token, onBack }) {
                     </label>
                     <textarea
                       value={question.question_text}
-                      onChange={(e) => handleQuestionChange(qIndex, "question_text", e.target.value)}
+                      onChange={(e) =>
+                        handleQuestionChange(
+                          qIndex,
+                          "question_text",
+                          e.target.value
+                        )
+                      }
                       rows="2"
                       className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                       placeholder="Enter question text"
@@ -339,9 +362,13 @@ export default function EditTest({ testId, token, onBack }) {
                           <input
                             type="text"
                             value={option}
-                            onChange={(e) => handleOptionChange(qIndex, oIndex, e.target.value)}
+                            onChange={(e) =>
+                              handleOptionChange(qIndex, oIndex, e.target.value)
+                            }
                             className="flex-1 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            placeholder={`Option ${String.fromCharCode(65 + oIndex)}`}
+                            placeholder={`Option ${String.fromCharCode(
+                              65 + oIndex
+                            )}`}
                           />
                           {question.options.length > 2 && (
                             <button
@@ -362,15 +389,23 @@ export default function EditTest({ testId, token, onBack }) {
                     </label>
                     <select
                       value={question.correct_answer}
-                      onChange={(e) => handleQuestionChange(qIndex, "correct_answer", e.target.value)}
+                      onChange={(e) =>
+                        handleQuestionChange(
+                          qIndex,
+                          "correct_answer",
+                          e.target.value
+                        )
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="">Select correct answer</option>
-                      {question.options.filter(opt => opt.trim() !== "").map((option, oIndex) => (
-                        <option key={oIndex} value={option}>
-                          {String.fromCharCode(65 + oIndex)}. {option}
-                        </option>
-                      ))}
+                      {question.options
+                        .filter((opt) => opt.trim() !== "")
+                        .map((option, oIndex) => (
+                          <option key={oIndex} value={option}>
+                            {String.fromCharCode(65 + oIndex)}. {option}
+                          </option>
+                        ))}
                     </select>
                   </div>
                 </div>
