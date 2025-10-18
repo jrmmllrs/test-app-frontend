@@ -14,7 +14,6 @@ export default function Dashboard({ user, token, onLogout, onNavigate }) {
 
   const fetchTests = async () => {
     try {
-      // FIX 1: Corrected endpoint logic - removed duplicate URL
       const endpoint =
         user?.role === "candidate"
           ? `${API_BASE_URL}/api/tests/available`
@@ -85,7 +84,9 @@ export default function Dashboard({ user, token, onLogout, onNavigate }) {
                 <h3 className="text-sm font-medium text-blue-900 mb-2">
                   User Info
                 </h3>
-                <p className="text-2xl font-bold text-blue-900">{user?.email}</p>
+                <p className="text-2xl font-bold text-blue-900">
+                  {user?.email}
+                </p>
                 <p className="text-sm text-blue-700 mt-1 capitalize">
                   Role: {user?.role}
                 </p>
@@ -93,9 +94,13 @@ export default function Dashboard({ user, token, onLogout, onNavigate }) {
 
               <div className="bg-green-50 rounded-lg p-6">
                 <h3 className="text-sm font-medium text-green-900 mb-2">
-                  {user?.role === "candidate" ? "Available Tests" : "Tests Created"}
+                  {user?.role === "candidate"
+                    ? "Available Tests"
+                    : "Tests Created"}
                 </h3>
-                <p className="text-2xl font-bold text-green-900">{tests.length}</p>
+                <p className="text-2xl font-bold text-green-900">
+                  {tests.length}
+                </p>
                 <p className="text-sm text-green-700 mt-1">
                   {user?.role === "candidate" ? "Ready to take" : "Total tests"}
                 </p>
@@ -115,10 +120,11 @@ export default function Dashboard({ user, token, onLogout, onNavigate }) {
             <div className="mt-6">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-semibold text-gray-900">
-                  {user?.role === "candidate" ? "Available Tests" : "Your Tests"}
+                  {user?.role === "candidate"
+                    ? "Available Tests"
+                    : "Your Tests"}
                 </h3>
-                
-                {/* FIX 2: Action buttons properly positioned */}
+
                 <div className="flex gap-2">
                   {user?.role === "admin" && (
                     <button
@@ -173,7 +179,6 @@ export default function Dashboard({ user, token, onLogout, onNavigate }) {
         </div>
       </main>
 
-      {/* FIX 3: Modal properly shown */}
       {showInviteModal && selectedTestForInvite && (
         <InviteModal
           test={selectedTestForInvite}
@@ -188,11 +193,36 @@ export default function Dashboard({ user, token, onLogout, onNavigate }) {
 function TestCard({ test, userRole, onNavigate, onInvite, token }) {
   const [invitations, setInvitations] = useState([]);
   const [showInvitations, setShowInvitations] = useState(false);
+  const [invitationCount, setInvitationCount] = useState(0);
   const API_BASE_URL = "http://localhost:5000";
+
+  // Fetch invitation count on mount for employer/admin
+  useEffect(() => {
+    if (userRole === "employer" || userRole === "admin") {
+      fetchInvitationCount();
+    }
+  }, [test.id, userRole]);
+
+  const fetchInvitationCount = async () => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/invitations/test/${test.id}/invitations`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      const data = await response.json();
+      if (data.success) {
+        setInvitationCount(data.invitations?.length || 0);
+      }
+    } catch (error) {
+      console.error("Error fetching invitation count:", error);
+    }
+  };
 
   const fetchInvitations = async () => {
     if (userRole === "candidate") return;
-    
+
     try {
       const response = await fetch(
         `${API_BASE_URL}/api/invitations/test/${test.id}/invitations`,
@@ -203,10 +233,28 @@ function TestCard({ test, userRole, onNavigate, onInvite, token }) {
       const data = await response.json();
       if (data.success) {
         setInvitations(data.invitations);
+        setInvitationCount(data.invitations?.length || 0);
         setShowInvitations(true);
       }
     } catch (error) {
       console.error("Error fetching invitations:", error);
+    }
+  };
+
+  const handleNavigate = (view, id, additionalParam = null) => {
+    // Debug logging
+    console.log('Navigation clicked:', { view, id, additionalParam });
+    
+    try {
+      // Handle different navigation patterns
+      if (additionalParam !== null) {
+        onNavigate(view, id, additionalParam);
+      } else {
+        onNavigate(view, id);
+      }
+    } catch (error) {
+      console.error('Navigation error:', error);
+      alert(`Navigation failed: ${error.message}`);
     }
   };
 
@@ -216,7 +264,7 @@ function TestCard({ test, userRole, onNavigate, onInvite, token }) {
       <p className="text-sm text-gray-600 mt-2 line-clamp-2">
         {test.description || "No description"}
       </p>
-      
+
       <div className="mt-4 space-y-2">
         <div className="flex items-center gap-2 text-sm text-gray-600">
           <CheckCircle size={16} className="text-green-600" />
@@ -231,27 +279,26 @@ function TestCard({ test, userRole, onNavigate, onInvite, token }) {
         )}
       </div>
 
-      {/* FIX 4: Properly styled action buttons */}
       <div className="mt-4 pt-4 border-t border-gray-200">
         {userRole === "employer" || userRole === "admin" ? (
           <div className="space-y-2">
             <div className="grid grid-cols-2 gap-2">
               <button
-                onClick={() => onNavigate("view-test", test.id)}
+                onClick={() => handleNavigate("view-test", test.id)}
                 className="px-3 py-2 text-sm text-gray-700 bg-gray-100 rounded hover:bg-gray-200 flex items-center justify-center gap-1"
               >
                 <Eye size={14} />
                 View
               </button>
               <button
-                onClick={() => onNavigate("test-results", test.id)}
+                onClick={() => handleNavigate("test-results", test.id)}
                 className="px-3 py-2 text-sm text-blue-700 bg-blue-50 rounded hover:bg-blue-100 flex items-center justify-center gap-1"
               >
                 <CheckCircle size={14} />
                 Results
               </button>
             </div>
-            
+
             <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={() => onInvite(test)}
@@ -265,12 +312,12 @@ function TestCard({ test, userRole, onNavigate, onInvite, token }) {
                 className="px-3 py-2 text-sm text-purple-700 bg-purple-50 rounded hover:bg-purple-100 flex items-center justify-center gap-1"
               >
                 <Users size={14} />
-                Invites ({invitations.length})
+                Invites ({invitationCount})
               </button>
             </div>
-            
+
             <button
-              onClick={() => onNavigate("proctoring-events", test.id, null)}
+              onClick={() => handleNavigate("proctoring-events", test.id, null)}
               className="w-full px-3 py-2 text-sm text-red-700 bg-red-50 rounded hover:bg-red-100"
             >
               View Proctoring Events
@@ -278,7 +325,7 @@ function TestCard({ test, userRole, onNavigate, onInvite, token }) {
           </div>
         ) : (
           <button
-            onClick={() => onNavigate("take-test", test.id)}
+            onClick={() => handleNavigate("take-test", test.id)}
             className="w-full px-4 py-2 text-sm text-white bg-green-600 rounded hover:bg-green-700 font-medium"
           >
             Take Test
@@ -286,7 +333,6 @@ function TestCard({ test, userRole, onNavigate, onInvite, token }) {
         )}
       </div>
 
-      {/* Show invitations modal */}
       {showInvitations && (
         <InvitationsListModal
           invitations={invitations}
@@ -333,7 +379,6 @@ function InviteModal({ test, token, onClose }) {
       return;
     }
 
-    // Validate emails
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const invalidEmails = validCandidates.filter(
       (c) => !emailRegex.test(c.email)
@@ -379,12 +424,14 @@ function InviteModal({ test, token, onClose }) {
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="p-6 border-b">
-          <h2 className="text-xl font-bold">Invite Candidates - {test.title}</h2>
+          <h2 className="text-xl font-bold">
+            Invite Candidates - {test.title}
+          </h2>
           <p className="text-sm text-gray-600 mt-1">
             Send test invitations to candidates via email
           </p>
         </div>
-        
+
         <div className="p-6">
           {!results ? (
             <>
@@ -465,7 +512,9 @@ function InviteModal({ test, token, onClose }) {
                     <p className="font-medium">{result.email}</p>
                     <p className="text-sm mt-1">
                       {result.success ? (
-                        <span className="text-green-700">✓ Invitation sent successfully</span>
+                        <span className="text-green-700">
+                          ✓ Invitation sent successfully
+                        </span>
                       ) : (
                         <span className="text-red-700">✗ {result.error}</span>
                       )}
@@ -518,7 +567,9 @@ function InvitationsListModal({ invitations, testTitle, token, onClose }) {
     };
     return (
       <span
-        className={`px-2 py-1 text-xs rounded-full ${styles[status] || "bg-gray-100 text-gray-800"}`}
+        className={`px-2 py-1 text-xs rounded-full ${
+          styles[status] || "bg-gray-100 text-gray-800"
+        }`}
       >
         {status}
       </span>
@@ -533,15 +584,22 @@ function InvitationsListModal({ invitations, testTitle, token, onClose }) {
         </div>
         <div className="p-6">
           {invitations.length === 0 ? (
-            <p className="text-gray-600 text-center py-8">No invitations sent yet</p>
+            <p className="text-gray-600 text-center py-8">
+              No invitations sent yet
+            </p>
           ) : (
             <div className="space-y-3">
               {invitations.map((inv) => (
-                <div key={inv.id} className="border rounded-lg p-4 hover:bg-gray-50">
+                <div
+                  key={inv.id}
+                  className="border rounded-lg p-4 hover:bg-gray-50"
+                >
                   <div className="flex justify-between items-start">
                     <div>
                       <p className="font-medium">{inv.candidate_name}</p>
-                      <p className="text-sm text-gray-600">{inv.candidate_email}</p>
+                      <p className="text-sm text-gray-600">
+                        {inv.candidate_email}
+                      </p>
                       <p className="text-xs text-gray-500 mt-1">
                         Invited: {new Date(inv.invited_at).toLocaleString()}
                       </p>
