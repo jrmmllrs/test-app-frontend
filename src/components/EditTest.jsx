@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { API_BASE_URL } from "../constants/views";
 
 export default function EditTest({ testId, token, onBack }) {
   const [test, setTest] = useState({
@@ -7,15 +8,80 @@ export default function EditTest({ testId, token, onBack }) {
     time_limit: 30,
     questions: [],
   });
+  const [questionTypes, setQuestionTypes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const API_BASE_URL = "http://localhost:5000";
 
   useEffect(() => {
+    fetchQuestionTypes();
     fetchTest();
   }, [testId]);
+
+  const fetchQuestionTypes = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/question-types`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log("Question types response:", data);
+      
+      if (data.success && data.questionTypes && data.questionTypes.length > 0) {
+        setQuestionTypes(data.questionTypes);
+      } else {
+        // Fallback to default types
+        console.warn("No question types from API, using defaults");
+        setQuestionTypes([
+          {
+            id: 1,
+            type_key: "multiple_choice",
+            display_name: "Multiple Choice",
+            requires_options: true,
+            requires_correct_answer: true
+          },
+          {
+            id: 2,
+            type_key: "short_answer",
+            display_name: "Short Answer",
+            requires_options: false,
+            requires_correct_answer: true
+          },
+          {
+            id: 3,
+            type_key: "true_false",
+            display_name: "True/False",
+            requires_options: true,
+            requires_correct_answer: true
+          }
+        ]);
+      }
+    } catch (error) {
+      console.error("Error fetching question types:", error);
+      // Use fallback on error
+      setQuestionTypes([
+        {
+          id: 1,
+          type_key: "multiple_choice",
+          display_name: "Multiple Choice",
+          requires_options: true,
+          requires_correct_answer: true
+        },
+        {
+          id: 2,
+          type_key: "short_answer",
+          display_name: "Short Answer",
+          requires_options: false,
+          requires_correct_answer: true
+        }
+      ]);
+    }
+  };
 
   const fetchTest = async () => {
     try {
@@ -23,17 +89,18 @@ export default function EditTest({ testId, token, onBack }) {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json();
+      
       if (data.success) {
-        // Normalize question types and ensure proper structure
         const normalizedTest = {
           ...data.test,
+          description: data.test.description || "",
           questions: data.test.questions.map(q => ({
             ...q,
-            // If question_type is missing or invalid, determine by checking if options exist
-question_type: q.question_type || "multiple_choice",
-            // Ensure options array exists for multiple choice
-            options: q.question_type === "short_answer" ? [] : (q.options || ["", "", "", ""]),
+            question_type: q.question_type || "multiple_choice",
+            question_text: q.question_text || "",
+            options: Array.isArray(q.options) ? q.options : [],
             correct_answer: q.correct_answer || "",
+            explanation: q.explanation || "",
           }))
         };
         setTest(normalizedTest);
@@ -48,15 +115,19 @@ question_type: q.question_type || "multiple_choice",
     }
   };
 
+  const getQuestionType = (typeKey) => {
+    return questionTypes.find(t => t.type_key === typeKey);
+  };
+
   const handleTestInfoChange = (field, value) => {
-    setTest((prev) => ({ ...prev, [field]: value }));
+    setTest((prev) => ({ ...prev, [field]: value || "" }));
   };
 
   const handleQuestionChange = (index, field, value) => {
     const updatedQuestions = [...test.questions];
     updatedQuestions[index] = {
       ...updatedQuestions[index],
-      [field]: value,
+      [field]: value || "",
     };
     setTest((prev) => ({ ...prev, questions: updatedQuestions }));
   };
@@ -64,32 +135,32 @@ question_type: q.question_type || "multiple_choice",
   const handleQuestionTypeChange = (index, newType) => {
     const updatedQuestions = [...test.questions];
     const question = updatedQuestions[index];
+    const selectedType = getQuestionType(newType);
     
-    if (newType === "short_answer") {
-      // Converting to short answer - keep only the correct_answer text
-      updatedQuestions[index] = {
-        ...question,
-        question_type: "short_answer",
-        options: [],
-        correct_answer: question.correct_answer || "",
-      };
+    let newQuestion = {
+      ...question,
+      question_type: newType,
+      correct_answer: "",
+    };
+
+    if (selectedType?.requires_options) {
+      if (newType === "true_false") {
+        newQuestion.options = ["True", "False"];
+      } else if (!question.options || question.options.length < 2) {
+        newQuestion.options = ["", "", "", ""];
+      }
     } else {
-      // Converting to multiple choice - initialize with empty options
-      updatedQuestions[index] = {
-        ...question,
-        question_type: "multiple_choice",
-        options: ["", "", "", ""],
-        correct_answer: "",
-      };
+      newQuestion.options = [];
     }
     
+    updatedQuestions[index] = newQuestion;
     setTest((prev) => ({ ...prev, questions: updatedQuestions }));
   };
 
   const handleOptionChange = (questionIndex, optionIndex, value) => {
     const updatedQuestions = [...test.questions];
     const options = [...updatedQuestions[questionIndex].options];
-    options[optionIndex] = value;
+    options[optionIndex] = value || "";
     updatedQuestions[questionIndex] = {
       ...updatedQuestions[questionIndex],
       options,
@@ -98,10 +169,13 @@ question_type: q.question_type || "multiple_choice",
   };
 
   const addQuestion = () => {
+    const defaultType = questionTypes[0] || { type_key: "multiple_choice", requires_options: true };
     const newQuestion = {
       question_text: "",
-      question_type: "multiple_choice",
-      options: ["", "", "", ""],
+      question_type: defaultType.type_key,
+      options: defaultType.requires_options 
+        ? (defaultType.type_key === "true_false" ? ["True", "False"] : ["", "", "", ""])
+        : [],
       correct_answer: "",
       explanation: "",
     };
@@ -135,7 +209,6 @@ question_type: q.question_type || "multiple_choice",
     const removedOption = question.options[optionIndex];
     question.options = question.options.filter((_, i) => i !== optionIndex);
 
-    // If removed option was correct answer, clear correct answer
     if (question.correct_answer === removedOption) {
       question.correct_answer = "";
     }
@@ -161,33 +234,29 @@ question_type: q.question_type || "multiple_choice",
 
     for (let i = 0; i < test.questions.length; i++) {
       const q = test.questions[i];
+      const questionType = getQuestionType(q.question_type);
 
       if (!q.question_text.trim()) {
         setError(`Question ${i + 1} text is required`);
         return false;
       }
 
-      if (q.question_type === "multiple_choice") {
+      if (questionType?.requires_options) {
         const validOptions = q.options.filter((opt) => opt.trim() !== "");
         if (validOptions.length < 2) {
           setError(`Question ${i + 1} must have at least 2 options`);
           return false;
         }
+      }
 
-        if (!q.correct_answer || !q.correct_answer.trim()) {
-          setError(`Question ${i + 1} must have a correct answer selected`);
-          return false;
-        }
-
-        if (!q.options.includes(q.correct_answer)) {
-          setError(
-            `Question ${i + 1} correct answer must match one of the options`
-          );
-          return false;
-        }
-      } else if (q.question_type === "short_answer") {
+      if (questionType?.requires_correct_answer) {
         if (!q.correct_answer || !q.correct_answer.trim()) {
           setError(`Question ${i + 1} must have a correct answer`);
+          return false;
+        }
+
+        if (questionType?.requires_options && !q.options.includes(q.correct_answer)) {
+          setError(`Question ${i + 1} correct answer must match one of the options`);
           return false;
         }
       }
@@ -207,20 +276,14 @@ question_type: q.question_type || "multiple_choice",
     setSaving(true);
 
     try {
-      // Clean up questions based on type
       const cleanedQuestions = test.questions.map((q) => {
-        if (q.question_type === "multiple_choice") {
-          return {
-            ...q,
-            options: q.options.filter((opt) => opt.trim() !== ""),
-          };
-        } else {
-          // For short answer, ensure options is empty array
-          return {
-            ...q,
-            options: [],
-          };
-        }
+        const questionType = getQuestionType(q.question_type);
+        return {
+          ...q,
+          options: questionType?.requires_options
+            ? q.options.filter((opt) => opt.trim() !== "")
+            : [],
+        };
       });
 
       const response = await fetch(`${API_BASE_URL}/api/tests/${testId}`, {
@@ -360,107 +423,150 @@ question_type: q.question_type || "multiple_choice",
             </div>
           ) : (
             <div className="space-y-6">
-              {test.questions.map((question, qIndex) => (
-                <div
-                  key={qIndex}
-                  className="border border-gray-200 rounded-lg p-4 bg-gray-50"
-                >
-                  <div className="flex items-start justify-between mb-3">
-                    <h3 className="font-medium text-lg">
-                      Question {qIndex + 1}
-                    </h3>
-                    <button
-                      onClick={() => removeQuestion(qIndex)}
-                      className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700"
-                    >
-                      Remove
-                    </button>
-                  </div>
+              {test.questions.map((question, qIndex) => {
+                const questionType = getQuestionType(question.question_type);
+                const requiresOptions = questionType?.requires_options;
+                const requiresCorrectAnswer = questionType?.requires_correct_answer;
 
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Question Type *
-                    </label>
-                    <select
-                      value={question.question_type}
-                      onChange={(e) =>
-                        handleQuestionTypeChange(qIndex, e.target.value)
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="multiple_choice">Multiple Choice</option>
-                      <option value="short_answer">Short Answer</option>
-                    </select>
-                  </div>
+                return (
+                  <div
+                    key={qIndex}
+                    className="border border-gray-200 rounded-lg p-4 bg-gray-50"
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <h3 className="font-medium text-lg">
+                        Question {qIndex + 1}
+                      </h3>
+                      <button
+                        onClick={() => removeQuestion(qIndex)}
+                        className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700"
+                      >
+                        Remove
+                      </button>
+                    </div>
 
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Question Text *
-                    </label>
-                    <textarea
-                      value={question.question_text}
-                      onChange={(e) =>
-                        handleQuestionChange(
-                          qIndex,
-                          "question_text",
-                          e.target.value
-                        )
-                      }
-                      rows="2"
-                      className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Enter question text"
-                    />
-                  </div>
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Question Type *
+                      </label>
+                      <select
+                        value={question.question_type}
+                        onChange={(e) =>
+                          handleQuestionTypeChange(qIndex, e.target.value)
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        {questionTypes.length === 0 ? (
+                          <option value="">Loading question types...</option>
+                        ) : (
+                          questionTypes.map((type) => (
+                            <option key={type.id} value={type.type_key}>
+                              {type.display_name || type.type_name}
+                            </option>
+                          ))
+                        )}
+                      </select>
+                    </div>
 
-                  {question.question_type === "multiple_choice" ? (
-                    <>
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Question Text *
+                      </label>
+                      <textarea
+                        value={question.question_text}
+                        onChange={(e) =>
+                          handleQuestionChange(
+                            qIndex,
+                            "question_text",
+                            e.target.value
+                          )
+                        }
+                        rows="2"
+                        className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Enter question text"
+                      />
+                    </div>
+
+                    {requiresOptions ? (
+                      <>
+                        <div className="mb-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="block text-sm font-medium text-gray-700">
+                              Options * (at least 2)
+                            </label>
+                            {question.question_type !== "true_false" && (
+                              <button
+                                onClick={() => addOption(qIndex)}
+                                className="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700"
+                              >
+                                + Add Option
+                              </button>
+                            )}
+                          </div>
+                          <div className="space-y-2">
+                            {question.options.map((option, oIndex) => (
+                              <div key={oIndex} className="flex items-center gap-2">
+                                <span className="text-sm font-medium text-gray-600 w-6">
+                                  {String.fromCharCode(65 + oIndex)}.
+                                </span>
+                                <input
+                                  type="text"
+                                  value={option}
+                                  onChange={(e) =>
+                                    handleOptionChange(qIndex, oIndex, e.target.value)
+                                  }
+                                  disabled={question.question_type === "true_false"}
+                                  className="flex-1 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                                  placeholder={`Option ${String.fromCharCode(65 + oIndex)}`}
+                                />
+                                {question.options.length > 2 && question.question_type !== "true_false" && (
+                                  <button
+                                    onClick={() => removeOption(qIndex, oIndex)}
+                                    className="px-2 py-1 bg-red-500 text-white text-sm rounded hover:bg-red-600"
+                                  >
+                                    ✕
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {requiresCorrectAnswer && (
+                          <div className="mb-4">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Correct Answer *
+                            </label>
+                            <select
+                              value={question.correct_answer}
+                              onChange={(e) =>
+                                handleQuestionChange(
+                                  qIndex,
+                                  "correct_answer",
+                                  e.target.value
+                                )
+                              }
+                              className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                              <option value="">Select correct answer</option>
+                              {question.options
+                                .filter((opt) => opt.trim() !== "")
+                                .map((option, oIndex) => (
+                                  <option key={oIndex} value={option}>
+                                    {String.fromCharCode(65 + oIndex)}. {option}
+                                  </option>
+                                ))}
+                            </select>
+                          </div>
+                        )}
+                      </>
+                    ) : requiresCorrectAnswer ? (
                       <div className="mb-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <label className="block text-sm font-medium text-gray-700">
-                            Options * (at least 2)
-                          </label>
-                          <button
-                            onClick={() => addOption(qIndex)}
-                            className="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700"
-                          >
-                            + Add Option
-                          </button>
-                        </div>
-                        <div className="space-y-2">
-                          {question.options.map((option, oIndex) => (
-                            <div key={oIndex} className="flex items-center gap-2">
-                              <span className="text-sm font-medium text-gray-600 w-6">
-                                {String.fromCharCode(65 + oIndex)}.
-                              </span>
-                              <input
-                                type="text"
-                                value={option}
-                                onChange={(e) =>
-                                  handleOptionChange(qIndex, oIndex, e.target.value)
-                                }
-                                className="flex-1 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                placeholder={`Option ${String.fromCharCode(
-                                  65 + oIndex
-                                )}`}
-                              />
-                              {question.options.length > 2 && (
-                                <button
-                                  onClick={() => removeOption(qIndex, oIndex)}
-                                  className="px-2 py-1 bg-red-500 text-white text-sm rounded hover:bg-red-600"
-                                >
-                                  ✕
-                                </button>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           Correct Answer *
                         </label>
-                        <select
+                        <input
+                          type="text"
                           value={question.correct_answer}
                           onChange={(e) =>
                             handleQuestionChange(
@@ -470,40 +576,32 @@ question_type: q.question_type || "multiple_choice",
                             )
                           }
                           className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                          <option value="">Select correct answer</option>
-                          {question.options
-                            .filter((opt) => opt.trim() !== "")
-                            .map((option, oIndex) => (
-                              <option key={oIndex} value={option}>
-                                {String.fromCharCode(65 + oIndex)}. {option}
-                              </option>
-                            ))}
-                        </select>
+                          placeholder="Enter the correct answer"
+                        />
                       </div>
-                    </>
-                  ) : (
+                    ) : null}
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Correct Answer *
+                        Explanation (Optional)
                       </label>
-                      <input
-                        type="text"
-                        value={question.correct_answer}
+                      <textarea
+                        value={question.explanation}
                         onChange={(e) =>
                           handleQuestionChange(
                             qIndex,
-                            "correct_answer",
+                            "explanation",
                             e.target.value
                           )
                         }
+                        rows="2"
                         className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="Enter the correct answer"
+                        placeholder="Explain why this is the correct answer"
                       />
                     </div>
-                  )}
-                </div>
-              ))}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
