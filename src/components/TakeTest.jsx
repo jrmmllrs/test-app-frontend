@@ -158,6 +158,7 @@ export default function TakeTest({
   const [fullscreenWarning, setFullscreenWarning] = useState(false);
   const [testBlocked, setTestBlocked] = useState(false);
   const [testStatus, setTestStatus] = useState(null);
+  const [questionTypes, setQuestionTypes] = useState([]); // NEW: Question types state
   
   const [initialTime, setInitialTime] = useState(null);
 
@@ -165,6 +166,11 @@ export default function TakeTest({
   const timeLeftRef = useRef(null);
   const testRef = useRef(null);
   const testStatusRef = useRef(null);
+
+  // NEW: Fetch question types on mount
+  useEffect(() => {
+    fetchQuestionTypes();
+  }, []);
 
   useEffect(() => {
     if (testId) {
@@ -175,6 +181,21 @@ export default function TakeTest({
       }
     }
   }, [testId, invitationToken]);
+
+  // NEW: Fetch question types function
+  const fetchQuestionTypes = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/question-types`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (data.success) {
+        setQuestionTypes(data.questionTypes);
+      }
+    } catch (error) {
+      console.error("Error fetching question types:", error);
+    }
+  };
 
   const checkTestStatus = async () => {
     try {
@@ -641,6 +662,7 @@ export default function TakeTest({
           </div>
         </div>
 
+        {/* UPDATED: Pass questionTypes to QuestionCard */}
         {test?.questions.map((question, index) => (
           <QuestionCard
             key={question.id}
@@ -648,6 +670,7 @@ export default function TakeTest({
             index={index}
             answer={answers[question.id]}
             onAnswerChange={handleAnswerChange}
+            questionTypes={questionTypes}
           />
         ))}
 
@@ -670,58 +693,69 @@ export default function TakeTest({
   );
 }
 
-function QuestionCard({ question, index, answer, onAnswerChange }) {
+// UPDATED: QuestionCard component with dynamic question type handling
+function QuestionCard({ question, index, answer, onAnswerChange, questionTypes = [] }) {
+  // NEW: Get question type details
+  const questionType = questionTypes.find(qt => qt.type_key === question.question_type);
+  const requiresOptions = questionType?.requires_options || false;
+
   return (
     <div className="bg-white rounded-lg shadow-md p-6 mb-4">
       <div className="flex items-start gap-3 mb-4">
         <span className="text-sm font-semibold text-indigo-600 bg-indigo-100 px-3 py-1 rounded">
           Q{index + 1}
         </span>
-        <p className="text-gray-900 font-medium flex-1">
-          {question.question_text}
-        </p>
+        <div className="flex-1">
+          <p className="text-gray-900 font-medium">
+            {question.question_text}
+          </p>
+          {/* NEW: Show question type badge */}
+          {questionType && (
+            <span className="inline-block mt-2 text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+              {questionType.type_name}
+            </span>
+          )}
+        </div>
       </div>
 
-      {(question.question_type === "multiple_choice" ||
-        question.question_type === "true_false") && (
+      {/* UPDATED: Show options only if question type requires them */}
+      {requiresOptions && Array.isArray(question.options) && question.options.length > 0 && (
         <div className="space-y-2 ml-12">
-          {Array.isArray(question.options) &&
-            question.options.map((option, i) => (
-              <label
-                key={i}
-                className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 cursor-pointer"
-              >
-                <input
-                  type="radio"
-                  name={`question-${question.id}`}
-                  value={option}
-                  checked={answer === option}
-                  onChange={(e) => onAnswerChange(question.id, e.target.value)}
-                  className="w-4 h-4 text-indigo-600"
-                />
-                <span className="text-gray-700">{option}</span>
-              </label>
-            ))}
+          {question.options.map((option, i) => (
+            <label
+              key={i}
+              className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 cursor-pointer"
+            >
+              <input
+                type="radio"
+                name={`question-${question.id}`}
+                value={option}
+                checked={answer === option}
+                onChange={(e) => onAnswerChange(question.id, e.target.value)}
+                className="w-4 h-4 text-indigo-600"
+              />
+              <span className="text-gray-700">{option}</span>
+            </label>
+          ))}
         </div>
       )}
 
-      {question.question_type === "short_answer" && (
+      {/* UPDATED: Show text area for non-option question types */}
+      {!requiresOptions && (
         <textarea
           value={answer || ""}
           onChange={(e) => onAnswerChange(question.id, e.target.value)}
-          className="w-full ml-12 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-          rows="3"
-          placeholder="Type your answer here..."
-        />
-      )}
-
-      {question.question_type === "coding" && (
-        <textarea
-          value={answer || ""}
-          onChange={(e) => onAnswerChange(question.id, e.target.value)}
-          className="w-full ml-12 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-mono text-sm"
-          rows="6"
-          placeholder="Write your code here..."
+          className={`w-full ml-12 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
+            question.question_type === 'coding' ? 'font-mono text-sm' : ''
+          }`}
+          rows={question.question_type === 'coding' ? 6 : question.question_type === 'essay' ? 8 : 3}
+          placeholder={
+            question.question_type === 'coding' 
+              ? "Write your code here..." 
+              : question.question_type === 'essay'
+              ? "Write your essay here..."
+              : "Type your answer here..."
+          }
         />
       )}
     </div>

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Plus, Save } from "lucide-react";
 import { API_BASE_URL } from "../constants";
 import { NavBar } from "./ui/Navbar";
@@ -16,24 +16,70 @@ export default function CreateTest({ user, token, onBack }) {
     time_limit: 30,
   });
   const [questions, setQuestions] = useState([]);
+  const [questionTypes, setQuestionTypes] = useState([]);
   const [showQuestionForm, setShowQuestionForm] = useState(false);
   const [currentQuestion, setCurrentQuestion] = useState({
     question_text: "",
     question_type: "multiple_choice",
     options: ["", "", "", ""],
     correct_answer: "",
-    explanation: "", // ADDED: explanation field
+    explanation: "",
   });
   const [editingIndex, setEditingIndex] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState({ type: "", text: "" });
+
+  // Fetch question types on component mount
+  useEffect(() => {
+    fetchQuestionTypes();
+  }, []);
+
+  const fetchQuestionTypes = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/question-types`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setQuestionTypes(data.questionTypes);
+        // Set default question type to first available type
+        if (data.questionTypes.length > 0) {
+          const defaultType = data.questionTypes[0];
+          setCurrentQuestion((prev) => ({
+            ...prev,
+            question_type: defaultType.type_key,
+            options: defaultType.requires_options
+              ? defaultType.type_key === "true_false"
+                ? ["True", "False"]
+                : ["", "", "", ""]
+              : [],
+          }));
+        }
+      } else {
+        setMessage({ type: "error", text: "Failed to load question types" });
+      }
+    } catch (error) {
+      console.error("Error fetching question types:", error);
+      setMessage({ type: "error", text: "Failed to load question types" });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleTestDataChange = (e) => {
     setTestData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
   const handleQuestionChange = (e) => {
-    setCurrentQuestion((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+    setCurrentQuestion((prev) => ({
+      ...prev,
+      [e.target.name]: e.target.value,
+    }));
   };
 
   const handleOptionChange = (index, value) => {
@@ -58,14 +104,21 @@ export default function CreateTest({ user, token, onBack }) {
 
   const handleQuestionTypeChange = (e) => {
     const type = e.target.value;
+    const selectedType = questionTypes.find((t) => t.type_key === type);
     let newQuestion = { ...currentQuestion, question_type: type };
 
-    if (type === "true_false") {
-      newQuestion.options = ["True", "False"];
-    } else if (type === "multiple_choice" && currentQuestion.options.length < 2) {
-      newQuestion.options = ["", "", "", ""];
-    } else if (type === "short_answer" || type === "coding") {
+    if (selectedType?.requires_options) {
+      if (type === "true_false") {
+        newQuestion.options = ["True", "False"];
+      } else if (currentQuestion.options.length < 2) {
+        newQuestion.options = ["", "", "", ""];
+      }
+    } else {
       newQuestion.options = [];
+    }
+
+    if (!selectedType?.requires_correct_answer) {
+      newQuestion.correct_answer = "";
     }
 
     setCurrentQuestion(newQuestion);
@@ -77,19 +130,26 @@ export default function CreateTest({ user, token, onBack }) {
       return;
     }
 
-    if (
-      currentQuestion.question_type === "multiple_choice" ||
-      currentQuestion.question_type === "true_false"
-    ) {
-      const filledOptions = currentQuestion.options.filter((opt) => opt.trim() !== "");
+    const selectedType = questionTypes.find(
+      (t) => t.type_key === currentQuestion.question_type
+    );
+
+    if (selectedType?.requires_options) {
+      const filledOptions = currentQuestion.options.filter(
+        (opt) => opt.trim() !== ""
+      );
       if (filledOptions.length < 2) {
         setMessage({ type: "error", text: "At least 2 options are required" });
         return;
       }
-      if (!currentQuestion.correct_answer) {
-        setMessage({ type: "error", text: "Please select the correct answer" });
-        return;
-      }
+    }
+
+    if (
+      selectedType?.requires_correct_answer &&
+      !currentQuestion.correct_answer
+    ) {
+      setMessage({ type: "error", text: "Please select the correct answer" });
+      return;
     }
 
     if (editingIndex !== null) {
@@ -101,12 +161,17 @@ export default function CreateTest({ user, token, onBack }) {
       setQuestions([...questions, currentQuestion]);
     }
 
+    const defaultType = questionTypes[0];
     setCurrentQuestion({
       question_text: "",
-      question_type: "multiple_choice",
-      options: ["", "", "", ""],
+      question_type: defaultType?.type_key || "multiple_choice",
+      options: defaultType?.requires_options
+        ? defaultType.type_key === "true_false"
+          ? ["True", "False"]
+          : ["", "", "", ""]
+        : [],
       correct_answer: "",
-      explanation: "", // ADDED: reset explanation
+      explanation: "",
     });
     setShowQuestionForm(false);
     setMessage({ type: "success", text: "Question saved!" });
@@ -124,12 +189,17 @@ export default function CreateTest({ user, token, onBack }) {
   };
 
   const cancelQuestionForm = () => {
+    const defaultType = questionTypes[0];
     setCurrentQuestion({
       question_text: "",
-      question_type: "multiple_choice",
-      options: ["", "", "", ""],
+      question_type: defaultType?.type_key || "multiple_choice",
+      options: defaultType?.requires_options
+        ? defaultType.type_key === "true_false"
+          ? ["True", "False"]
+          : ["", "", "", ""]
+        : [],
       correct_answer: "",
-      explanation: "", // ADDED: reset explanation
+      explanation: "",
     });
     setEditingIndex(null);
     setShowQuestionForm(false);
@@ -151,14 +221,18 @@ export default function CreateTest({ user, token, onBack }) {
     try {
       const testPayload = {
         ...testData,
-        questions: questions.map((q) => ({
-          ...q,
-          options:
-            q.question_type === "multiple_choice" || q.question_type === "true_false"
+        questions: questions.map((q) => {
+          const questionType = questionTypes.find(
+            (t) => t.type_key === q.question_type
+          );
+          return {
+            ...q,
+            options: questionType?.requires_options
               ? JSON.stringify(q.options.filter((opt) => opt.trim() !== ""))
               : null,
-          explanation: q.explanation || null, // ADDED: include explanation
-        })),
+            explanation: q.explanation || null,
+          };
+        }),
       };
 
       const response = await fetch(`${API_BASE_URL}/tests/create`, {
@@ -173,7 +247,10 @@ export default function CreateTest({ user, token, onBack }) {
       const data = await response.json();
 
       if (!data.success) {
-        setMessage({ type: "error", text: data.message || "Failed to create test" });
+        setMessage({
+          type: "error",
+          text: data.message || "Failed to create test",
+        });
         setSaving(false);
         return;
       }
@@ -188,10 +265,21 @@ export default function CreateTest({ user, token, onBack }) {
       }, 2000);
     } catch (error) {
       console.error("Error:", error);
-      setMessage({ type: "error", text: "Failed to create test. Please try again." });
+      setMessage({
+        type: "error",
+        text: "Failed to create test. Please try again.",
+      });
       setSaving(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-lg">Loading question types...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -259,6 +347,7 @@ export default function CreateTest({ user, token, onBack }) {
                 onRemoveOption={removeOption}
                 onSave={saveQuestion}
                 onCancel={cancelQuestionForm}
+                questionTypes={questionTypes}
               />
             )}
 
@@ -271,6 +360,7 @@ export default function CreateTest({ user, token, onBack }) {
                     index={index}
                     onEdit={() => editQuestion(index)}
                     onDelete={() => deleteQuestion(index)}
+                    questionTypes={questionTypes}
                   />
                 ))}
               </div>
@@ -281,7 +371,12 @@ export default function CreateTest({ user, token, onBack }) {
             <Button variant="secondary" onClick={onBack}>
               Cancel
             </Button>
-            <Button variant="success" onClick={saveTest} disabled={saving} icon={Save}>
+            <Button
+              variant="success"
+              onClick={saveTest}
+              disabled={saving}
+              icon={Save}
+            >
               {saving ? "Saving..." : "Create Test"}
             </Button>
           </div>

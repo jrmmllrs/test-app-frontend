@@ -1,5 +1,13 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Clock, CheckCircle, Mail, Users, Eye, FileText } from "lucide-react";
+import {
+  Plus,
+  Clock,
+  CheckCircle,
+  Mail,
+  Users,
+  Eye,
+  FileText,
+} from "lucide-react";
 
 export default function Dashboard({ user, token, onLogout, onNavigate }) {
   const [tests, setTests] = useState([]);
@@ -127,13 +135,23 @@ export default function Dashboard({ user, token, onLogout, onNavigate }) {
 
                 <div className="flex gap-2">
                   {user?.role === "admin" && (
-                    <button
-                      onClick={() => onNavigate("admin-results")}
-                      className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600 flex items-center gap-2"
-                    >
-                      <Users size={20} />
-                      View All Results
-                    </button>
+                    <>
+                      <button
+                        onClick={() => onNavigate("admin-results")}
+                        className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600 flex items-center gap-2"
+                      >
+                        <Users size={20} />
+                        View All Results
+                      </button>
+                      {/* ADD THIS NEW BUTTON */}
+                      <button
+                        onClick={() => onNavigate("question-type-manager")}
+                        className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 flex items-center gap-2"
+                      >
+                        <FileText size={20} />
+                        Question Types
+                      </button>
+                    </>
                   )}
 
                   {(user?.role === "employer" || user?.role === "admin") && (
@@ -242,8 +260,8 @@ function TestCard({ test, user, userRole, onNavigate, onInvite, token }) {
   };
 
   const handleNavigate = (view, id, additionalParam = null) => {
-    console.log('Navigation clicked:', { view, id, additionalParam });
-    
+    console.log("Navigation clicked:", { view, id, additionalParam });
+
     try {
       if (additionalParam !== null) {
         onNavigate(view, id, additionalParam);
@@ -251,7 +269,7 @@ function TestCard({ test, user, userRole, onNavigate, onInvite, token }) {
         onNavigate(view, id);
       }
     } catch (error) {
-      console.error('Navigation error:', error);
+      console.error("Navigation error:", error);
       alert(`Navigation failed: ${error.message}`);
     }
   };
@@ -331,7 +349,9 @@ function TestCard({ test, user, userRole, onNavigate, onInvite, token }) {
           <div className="space-y-2">
             {test.is_completed ? (
               <button
-                onClick={() => handleNavigate("answer-review", test.id, user.id)}
+                onClick={() =>
+                  handleNavigate("answer-review", test.id, user.id)
+                }
                 className="w-full px-4 py-2 text-sm text-white bg-blue-600 rounded hover:bg-blue-700 font-medium flex items-center justify-center gap-2"
               >
                 <FileText size={16} />
