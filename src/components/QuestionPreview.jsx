@@ -1,8 +1,25 @@
 import React, { useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 
-export default function QuestionPreview({ question, index, onEdit, onDelete }) {
+export default function QuestionPreview({
+  question,
+  index,
+  onEdit,
+  onDelete,
+  questionTypes = [], // NEW: Accept dynamic question types
+}) {
   const [expandedExplanation, setExpandedExplanation] = useState(false);
+
+  // NEW: Get question type display name
+  const getQuestionTypeName = () => {
+    const qt = questionTypes.find((t) => t.type_key === question.question_type);
+    return qt ? qt.type_name : question.question_type.replace("_", " ");
+  };
+
+  // NEW: Check if question type requires options
+  const selectedType = questionTypes.find(
+    (qt) => qt.type_key === question.question_type
+  );
 
   return (
     <div className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
@@ -12,33 +29,52 @@ export default function QuestionPreview({ question, index, onEdit, onDelete }) {
             <span className="text-sm font-semibold text-indigo-600 bg-indigo-100 px-2 py-1 rounded">
               Q{index + 1}
             </span>
+            {/* UPDATED: Display dynamic question type name */}
             <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-              {question.question_type.replace("_", " ").toUpperCase()}
+              {getQuestionTypeName().toUpperCase()}
             </span>
           </div>
-          <p className="text-gray-900 font-medium mb-2">{question.question_text}</p>
+          <p className="text-gray-900 font-medium mb-2">
+            {question.question_text}
+          </p>
 
-          {(question.question_type === "multiple_choice" ||
-            question.question_type === "true_false") && (
-            <div className="ml-4 space-y-1">
-              {question.options
-                .filter((opt) => opt.trim())
-                .map((option, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <span
-                      className={`text-sm ${
-                        option === question.correct_answer
-                          ? "text-green-600 font-semibold"
-                          : "text-gray-600"
-                      }`}
-                    >
-                      {option === question.correct_answer && "✓ "}
-                      {option}
-                    </span>
-                  </div>
-                ))}
-            </div>
-          )}
+          {/* UPDATED: Show options only if question type requires them */}
+          {selectedType?.requires_options &&
+            question.options &&
+            question.options.length > 0 && (
+              <div className="ml-4 space-y-1">
+                {question.options
+                  .filter((opt) => opt.trim())
+                  .map((option, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <span
+                        className={`text-sm ${
+                          option === question.correct_answer
+                            ? "text-green-600 font-semibold"
+                            : "text-gray-600"
+                        }`}
+                      >
+                        {option === question.correct_answer && "✓ "}
+                        {option}
+                      </span>
+                    </div>
+                  ))}
+              </div>
+            )}
+
+          {/* NEW: Show expected answer for non-option questions */}
+          {!selectedType?.requires_options &&
+            question.correct_answer &&
+            selectedType?.requires_correct_answer && (
+              <div className="ml-4 mt-2">
+                <p className="text-xs text-gray-500 font-medium">
+                  Expected Answer:
+                </p>
+                <p className="text-sm text-gray-700 bg-gray-50 p-2 rounded mt-1">
+                  {question.correct_answer}
+                </p>
+              </div>
+            )}
 
           {question.explanation && (
             <div className="mt-3 border-t border-gray-200 pt-3">

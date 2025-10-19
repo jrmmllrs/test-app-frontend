@@ -8,6 +8,7 @@ import AdminResults from "./components/AdminResults";
 import ProctoringEvents from "./components/ProctoringEvents";
 import InvitationAccept from "./components/AcceptInvitation";
 import AnswerReview from "./components/ReviewAnswers";
+import QuestionTypeManager from "./components/QuestionTypeManager";
 
 // ViewTest component with Edit button
 function ViewTest({ testId, token, onBack, onEdit }) {
@@ -482,6 +483,13 @@ export default function App() {
         <ProctoringEvents
           testId={selectedTestId}
           candidateId={selectedCandidateId}
+          token={token}
+          onBack={() => handleNavigate("dashboard")}
+        />
+      )}
+
+      {currentView === "question-type-manager" && (
+        <QuestionTypeManager
           token={token}
           onBack={() => handleNavigate("dashboard")}
         />

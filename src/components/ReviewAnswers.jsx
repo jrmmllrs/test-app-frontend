@@ -1,19 +1,36 @@
 import React, { useState, useEffect } from "react";
+import { API_BASE_URL } from "../constants";
 
 export default function AnswerReview({ testId, candidateId, token, onBack }) {
   const [review, setReview] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const API_BASE_URL = "http://localhost:5000";
+  const [questionTypes, setQuestionTypes] = useState([]); // NEW: Question types state
 
   useEffect(() => {
+    fetchQuestionTypes();
     fetchReview();
   }, [testId, candidateId]);
+
+  // NEW: Fetch question types
+  const fetchQuestionTypes = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/question-types`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (data.success) {
+        setQuestionTypes(data.questionTypes);
+      }
+    } catch (error) {
+      console.error("Error fetching question types:", error);
+    }
+  };
 
   const fetchReview = async () => {
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/tests/${testId}/review/${candidateId}`,
+        `${API_BASE_URL}/tests/${testId}/review/${candidateId}`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }
@@ -31,6 +48,17 @@ export default function AnswerReview({ testId, candidateId, token, onBack }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  // NEW: Helper to get question type details
+  const getQuestionTypeDetails = (typeKey) => {
+    return questionTypes.find((qt) => qt.type_key === typeKey);
+  };
+
+  // NEW: Helper to get question type display name
+  const getQuestionTypeName = (typeKey) => {
+    const qt = getQuestionTypeDetails(typeKey);
+    return qt ? qt.type_name : typeKey.replace("_", " ");
   };
 
   if (loading) {
@@ -72,7 +100,7 @@ export default function AnswerReview({ testId, candidateId, token, onBack }) {
             onClick={onBack}
             className="mb-4 px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
           >
-            Back
+            ← Back
           </button>
           <h1 className="text-3xl font-bold text-gray-800">{test.title}</h1>
           <p className="text-gray-600 mt-2">Answer Review</p>
@@ -112,13 +140,12 @@ export default function AnswerReview({ testId, candidateId, token, onBack }) {
             const isCorrect = q.is_correct === 1;
             const userAnswer = q.user_answer;
             const correctAnswer = q.correct_answer;
+
+            // NEW: Get question type details dynamically
+            const questionTypeDetails = getQuestionTypeDetails(q.question_type);
+            const requiresOptions =
+              questionTypeDetails?.requires_options || false;
             const hasOptions = q.options && q.options.length > 0;
-            const isMultipleChoice =
-              q.question_type === "multiple_choice" ||
-              q.question_type === "true_false";
-            const isShortAnswer =
-              q.question_type === "short_answer" ||
-              q.question_type === "coding";
 
             return (
               <div
@@ -135,8 +162,9 @@ export default function AnswerReview({ testId, candidateId, token, onBack }) {
                         <span className="text-sm font-semibold text-gray-500">
                           Question {index + 1}
                         </span>
+                        {/* UPDATED: Use dynamic question type name */}
                         <span className="text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded">
-                          {q.question_type.replace("_", " ").toUpperCase()}
+                          {getQuestionTypeName(q.question_type).toUpperCase()}
                         </span>
                         {isCorrect ? (
                           <span className="px-3 py-1 bg-green-100 text-green-800 text-xs font-semibold rounded-full">
@@ -154,8 +182,8 @@ export default function AnswerReview({ testId, candidateId, token, onBack }) {
                     </div>
                   </div>
 
-                  {/* Multiple Choice/True-False Options */}
-                  {isMultipleChoice && hasOptions && (
+                  {/* UPDATED: Show options only if question type requires them */}
+                  {requiresOptions && hasOptions && (
                     <div className="space-y-2 mb-4">
                       {q.options.map((option, optIndex) => {
                         const isUserAnswer = option === userAnswer;
@@ -208,28 +236,38 @@ export default function AnswerReview({ testId, candidateId, token, onBack }) {
                     </div>
                   )}
 
-                  {/* Short Answer / Coding Question - Show Both Answers */}
-                  {isShortAnswer && (
+                  {/* UPDATED: Show text answers for non-option question types */}
+                  {!requiresOptions && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
                       {/* Your Answer */}
                       <div className="p-4 rounded-lg border-2 bg-blue-50 border-blue-300">
                         <p className="text-xs font-semibold text-blue-600 mb-2 uppercase">
                           Your Answer
                         </p>
-                        <div className="bg-white rounded p-3 font-mono text-sm text-gray-800 whitespace-pre-wrap break-words max-h-48 overflow-y-auto">
+                        <div
+                          className={`bg-white rounded p-3 text-sm text-gray-800 whitespace-pre-wrap break-words max-h-48 overflow-y-auto ${
+                            q.question_type === "coding" ? "font-mono" : ""
+                          }`}
+                        >
                           {userAnswer || "(No answer provided)"}
                         </div>
                       </div>
 
                       {/* Expected Answer / Keywords */}
-                      <div className="p-4 rounded-lg border-2 bg-green-50 border-green-300">
-                        <p className="text-xs font-semibold text-green-600 mb-2 uppercase">
-                          Expected Answer / Keywords
-                        </p>
-                        <div className="bg-white rounded p-3 font-mono text-sm text-gray-800 whitespace-pre-wrap break-words max-h-48 overflow-y-auto">
-                          {correctAnswer}
+                      {correctAnswer && (
+                        <div className="p-4 rounded-lg border-2 bg-green-50 border-green-300">
+                          <p className="text-xs font-semibold text-green-600 mb-2 uppercase">
+                            Expected Answer / Keywords
+                          </p>
+                          <div
+                            className={`bg-white rounded p-3 text-sm text-gray-800 whitespace-pre-wrap break-words max-h-48 overflow-y-auto ${
+                              q.question_type === "coding" ? "font-mono" : ""
+                            }`}
+                          >
+                            {correctAnswer}
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
                   )}
 

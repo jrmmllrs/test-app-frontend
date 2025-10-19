@@ -14,7 +14,13 @@ export default function QuestionForm({
   onRemoveOption,
   onSave,
   onCancel,
+  questionTypes = [], // NEW: Accept dynamic question types
 }) {
+  // NEW: Find the selected question type details
+  const selectedType = questionTypes.find(
+    (qt) => qt.type_key === currentQuestion.question_type
+  );
+
   return (
     <div className="border-2 border-indigo-200 rounded-lg p-6 mb-6 bg-indigo-50">
       <h3 className="text-lg font-semibold text-gray-900 mb-4">
@@ -22,15 +28,17 @@ export default function QuestionForm({
       </h3>
 
       <div className="space-y-4">
+        {/* UPDATED: Dynamic question type options */}
         <Select
           label="Question Type *"
           value={currentQuestion.question_type}
           onChange={onQuestionTypeChange}
           options={[
-            { value: "multiple_choice", label: "Multiple Choice" },
-            { value: "true_false", label: "True/False" },
-            { value: "short_answer", label: "Short Answer" },
-            { value: "coding", label: "Coding" },
+            { value: "", label: "Select question type" },
+            ...questionTypes.map((qt) => ({
+              value: qt.type_key,
+              label: qt.type_name,
+            })),
           ]}
         />
 
@@ -43,8 +51,8 @@ export default function QuestionForm({
           placeholder="Enter your question..."
         />
 
-        {(currentQuestion.question_type === "multiple_choice" ||
-          currentQuestion.question_type === "true_false") && (
+        {/* UPDATED: Show options only if question type requires them */}
+        {selectedType?.requires_options && (
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Options *
@@ -60,7 +68,7 @@ export default function QuestionForm({
                     placeholder={`Option ${index + 1}`}
                     readOnly={currentQuestion.question_type === "true_false"}
                   />
-                  {currentQuestion.question_type === "multiple_choice" &&
+                  {currentQuestion.question_type !== "true_false" &&
                     currentQuestion.options.length > 2 && (
                       <button
                         onClick={() => onRemoveOption(index)}
@@ -71,7 +79,7 @@ export default function QuestionForm({
                     )}
                 </div>
               ))}
-              {currentQuestion.question_type === "multiple_choice" && (
+              {currentQuestion.question_type !== "true_false" && (
                 <button
                   onClick={onAddOption}
                   className="text-indigo-600 hover:text-indigo-700 text-sm font-medium"
@@ -81,34 +89,38 @@ export default function QuestionForm({
               )}
             </div>
 
-            <div className="mt-4">
-              <Select
-                label="Correct Answer *"
-                name="correct_answer"
-                value={currentQuestion.correct_answer}
-                onChange={onQuestionChange}
-                options={[
-                  { value: "", label: "Select correct answer" },
-                  ...currentQuestion.options
-                    .filter((opt) => opt.trim())
-                    .map((opt) => ({ value: opt, label: opt })),
-                ]}
-              />
-            </div>
+            {/* Show correct answer selector only if required */}
+            {selectedType?.requires_correct_answer && (
+              <div className="mt-4">
+                <Select
+                  label="Correct Answer *"
+                  name="correct_answer"
+                  value={currentQuestion.correct_answer}
+                  onChange={onQuestionChange}
+                  options={[
+                    { value: "", label: "Select correct answer" },
+                    ...currentQuestion.options
+                      .filter((opt) => opt.trim())
+                      .map((opt) => ({ value: opt, label: opt })),
+                  ]}
+                />
+              </div>
+            )}
           </div>
         )}
 
-        {(currentQuestion.question_type === "short_answer" ||
-          currentQuestion.question_type === "coding") && (
-          <TextArea
-            label="Expected Answer / Keywords"
-            name="correct_answer"
-            value={currentQuestion.correct_answer}
-            onChange={onQuestionChange}
-            rows="3"
-            placeholder="Enter expected answer or keywords for evaluation..."
-          />
-        )}
+        {/* UPDATED: Show answer field for types without options but requiring answer */}
+        {!selectedType?.requires_options &&
+          selectedType?.requires_correct_answer && (
+            <TextArea
+              label="Expected Answer / Keywords"
+              name="correct_answer"
+              value={currentQuestion.correct_answer}
+              onChange={onQuestionChange}
+              rows="3"
+              placeholder="Enter expected answer or keywords for evaluation..."
+            />
+          )}
 
         <TextArea
           label="Explanation (Optional)"
