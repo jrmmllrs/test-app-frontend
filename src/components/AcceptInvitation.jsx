@@ -1,4 +1,3 @@
-// components/InvitationAccept.jsx
 import React, { useState, useEffect } from "react";
 import { Clock, CheckCircle, AlertCircle } from "lucide-react";
 
@@ -6,9 +5,14 @@ export default function InvitationAccept({ token, onNavigate, onLogin }) {
   const [loading, setLoading] = useState(true);
   const [invitation, setInvitation] = useState(null);
   const [error, setError] = useState(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const API_BASE_URL = "http://localhost:5000";
 
   useEffect(() => {
+    // Check if user is logged in
+    const authToken = localStorage.getItem("token");
+    setIsLoggedIn(!!authToken);
+
     acceptInvitation();
   }, [token]);
 
@@ -33,16 +37,8 @@ export default function InvitationAccept({ token, onNavigate, onLogin }) {
   };
 
   const handleStartTest = () => {
-    // Check if user is logged in
-    const token = localStorage.getItem("token");
-    if (!token) {
-      // Not logged in - prompt to login/register
-      alert("Please login or register to take the test");
-      onLogin();
-    } else {
-      // Logged in - navigate to test
-      onNavigate("take-test", invitation.testId);
-    }
+    // Navigate to test
+    onNavigate("take-test", invitation.testId);
   };
 
   if (loading) {
@@ -93,7 +89,7 @@ export default function InvitationAccept({ token, onNavigate, onLogin }) {
 
         <div className="bg-gray-50 rounded-lg p-6 mb-6">
           <h3 className="font-semibold text-gray-900 mb-4">Test Details</h3>
-          
+
           <div className="space-y-3">
             <div className="flex items-start gap-3">
               <span className="font-medium text-gray-700 min-w-[120px]">
@@ -101,37 +97,39 @@ export default function InvitationAccept({ token, onNavigate, onLogin }) {
               </span>
               <span className="text-gray-900">{invitation.candidateName}</span>
             </div>
-            
+
             <div className="flex items-start gap-3">
               <span className="font-medium text-gray-700 min-w-[120px]">
                 Email:
               </span>
               <span className="text-gray-900">{invitation.candidateEmail}</span>
             </div>
-            
+
             {invitation.testDescription && (
               <div className="flex items-start gap-3">
                 <span className="font-medium text-gray-700 min-w-[120px]">
                   Description:
                 </span>
-                <span className="text-gray-900">{invitation.testDescription}</span>
+                <span className="text-gray-900">
+                  {invitation.testDescription}
+                </span>
               </div>
             )}
-            
+
             <div className="flex items-center gap-3">
               <CheckCircle size={20} className="text-green-600" />
               <span className="text-gray-900">
                 {invitation.questionCount} questions
               </span>
             </div>
-            
+
             <div className="flex items-center gap-3">
               <Clock size={20} className="text-blue-600" />
               <span className="text-gray-900">
                 {invitation.timeLimit} minutes time limit
               </span>
             </div>
-            
+
             <div className="flex items-start gap-3">
               <span className="font-medium text-gray-700 min-w-[120px]">
                 Expires:
@@ -143,27 +141,40 @@ export default function InvitationAccept({ token, onNavigate, onLogin }) {
           </div>
         </div>
 
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-          <p className="text-sm text-blue-800">
-            <strong>Note:</strong> You need to login or register with the email{" "}
-            <strong>{invitation.candidateEmail}</strong> to take this test.
-          </p>
-        </div>
+        {!isLoggedIn ? (
+          <>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+              <p className="text-sm text-blue-800">
+                <strong>Note:</strong> You need to login or register with the
+                email <strong>{invitation.candidateEmail}</strong> to take this
+                test.
+              </p>
+            </div>
 
-        <div className="flex gap-4">
-          <button
-            onClick={handleStartTest}
-            className="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold"
-          >
-            Start Test
-          </button>
-          <button
-            onClick={onLogin}
-            className="flex-1 px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-semibold"
-          >
-            Login / Register
-          </button>
-        </div>
+            <button
+              onClick={onLogin}
+              className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold"
+            >
+              Login / Register to Take Test
+            </button>
+          </>
+        ) : (
+          <>
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+              <p className="text-sm text-green-800">
+                <strong>You're logged in!</strong> Click the button below to
+                start the test.
+              </p>
+            </div>
+
+            <button
+              onClick={handleStartTest}
+              className="w-full px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold"
+            >
+              Start Test
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
