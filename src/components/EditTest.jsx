@@ -1,11 +1,18 @@
 import React, { useState, useEffect } from "react";
-import { API_BASE_URL } from "../constants/views";
+import { Upload, FileText, X, ExternalLink } from "lucide-react";
 
 export default function EditTest({ testId, token, onBack }) {
+  const API_BASE_URL = "http://localhost:5000/api";
+  
   const [test, setTest] = useState({
     title: "",
     description: "",
     time_limit: 30,
+    pdf_url: "",
+    google_drive_id: "",
+    thumbnail_url: "",
+    test_type: "standard",
+    target_role: "candidate",
     questions: [],
   });
   const [questionTypes, setQuestionTypes] = useState([]);
@@ -21,7 +28,7 @@ export default function EditTest({ testId, token, onBack }) {
 
   const fetchQuestionTypes = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/question-types`, {
+      const response = await fetch(`${API_BASE_URL}/question-types`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       
@@ -35,7 +42,6 @@ export default function EditTest({ testId, token, onBack }) {
       if (data.success && data.questionTypes && data.questionTypes.length > 0) {
         setQuestionTypes(data.questionTypes);
       } else {
-        // Fallback to default types
         console.warn("No question types from API, using defaults");
         setQuestionTypes([
           {
@@ -63,7 +69,6 @@ export default function EditTest({ testId, token, onBack }) {
       }
     } catch (error) {
       console.error("Error fetching question types:", error);
-      // Use fallback on error
       setQuestionTypes([
         {
           id: 1,
@@ -85,7 +90,7 @@ export default function EditTest({ testId, token, onBack }) {
 
   const fetchTest = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/tests/${testId}`, {
+      const response = await fetch(`${API_BASE_URL}/tests/${testId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json();
@@ -94,6 +99,11 @@ export default function EditTest({ testId, token, onBack }) {
         const normalizedTest = {
           ...data.test,
           description: data.test.description || "",
+          pdf_url: data.test.pdf_url || "",
+          google_drive_id: data.test.google_drive_id || "",
+          thumbnail_url: data.test.thumbnail_url || "",
+          test_type: data.test.test_type || "standard",
+          target_role: data.test.target_role || "candidate",
           questions: data.test.questions.map(q => ({
             ...q,
             question_type: q.question_type || "multiple_choice",
@@ -121,6 +131,42 @@ export default function EditTest({ testId, token, onBack }) {
 
   const handleTestInfoChange = (field, value) => {
     setTest((prev) => ({ ...prev, [field]: value || "" }));
+  };
+
+  // Extract Google Drive ID from various URL formats
+  const extractDriveId = (url) => {
+    if (!url) return "";
+    const patterns = [
+      /\/d\/([a-zA-Z0-9_-]+)/,
+      /id=([a-zA-Z0-9_-]+)/,
+      /^([a-zA-Z0-9_-]{25,})$/
+    ];
+    for (const pattern of patterns) {
+      const match = url.match(pattern);
+      if (match) return match[1];
+    }
+    return url;
+  };
+
+  const handlePdfUrlChange = (e) => {
+    const url = e.target.value;
+    const driveId = extractDriveId(url);
+    
+    setTest((prev) => ({
+      ...prev,
+      pdf_url: url,
+      google_drive_id: driveId,
+      thumbnail_url: driveId ? `https://drive.google.com/thumbnail?id=${driveId}` : "",
+    }));
+  };
+
+  const clearPdfAttachment = () => {
+    setTest((prev) => ({
+      ...prev,
+      pdf_url: "",
+      google_drive_id: "",
+      thumbnail_url: "",
+    }));
   };
 
   const handleQuestionChange = (index, field, value) => {
@@ -227,6 +273,11 @@ export default function EditTest({ testId, token, onBack }) {
       return false;
     }
 
+    if (test.test_type === 'pdf_based' && !test.pdf_url.trim()) {
+      setError("PDF URL is required for PDF-based tests");
+      return false;
+    }
+
     if (test.questions.length === 0) {
       setError("Add at least one question");
       return false;
@@ -286,7 +337,7 @@ export default function EditTest({ testId, token, onBack }) {
         };
       });
 
-      const response = await fetch(`${API_BASE_URL}/api/tests/${testId}`, {
+      const response = await fetch(`${API_BASE_URL}/tests/${testId}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -296,6 +347,11 @@ export default function EditTest({ testId, token, onBack }) {
           title: test.title,
           description: test.description,
           time_limit: test.time_limit,
+          pdf_url: test.pdf_url || null,
+          google_drive_id: test.google_drive_id || null,
+          thumbnail_url: test.thumbnail_url || null,
+          test_type: test.test_type,
+          target_role: test.target_role,
           questions: cleanedQuestions,
         }),
       });
@@ -402,6 +458,117 @@ export default function EditTest({ testId, token, onBack }) {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
+
+          {/* Test Type Selection */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Test Type
+            </label>
+            <select
+              value={test.test_type}
+              onChange={(e) => handleTestInfoChange("test_type", e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="standard">Standard Test</option>
+              <option value="pdf_based">PDF-Based Test</option>
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              {test.test_type === "pdf_based" 
+                ? "PDF-based tests include a reference document" 
+                : "Standard test with questions only"}
+            </p>
+          </div>
+
+          {/* Target Role Selection */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Target Audience
+            </label>
+            <select
+              value={test.target_role}
+              onChange={(e) => handleTestInfoChange("target_role", e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="candidate">Candidates</option>
+              <option value="employer">Employers/Staff</option>
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              {test.target_role === "employer" 
+                ? "This test will be visible to employers and staff members" 
+                : "This test will be available to candidates"}
+            </p>
+          </div>
+
+          {/* PDF Upload Section (only show for pdf_based tests) */}
+          {test.test_type === "pdf_based" && (
+            <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 bg-gray-50">
+              <div className="flex items-center gap-2 mb-3">
+                <Upload className="text-blue-600" size={20} />
+                <h3 className="font-semibold text-gray-900">PDF Attachment</h3>
+              </div>
+
+              {!test.pdf_url ? (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Google Drive URL or File ID
+                  </label>
+                  <input
+                    type="text"
+                    value={test.pdf_url}
+                    onChange={handlePdfUrlChange}
+                    placeholder="https://drive.google.com/file/d/YOUR_FILE_ID/view or just the FILE_ID"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                  />
+                  <div className="mt-2 text-xs text-gray-600 space-y-1">
+                    <p>• Paste the Google Drive sharing link</p>
+                    <p>• Or just paste the file ID</p>
+                    <p>• Make sure the file is set to "Anyone with the link can view"</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between bg-white p-3 rounded border border-gray-200">
+                    <div className="flex items-center gap-3">
+                      <FileText className="text-blue-600" size={24} />
+                      <div>
+                        <p className="font-medium text-sm text-gray-900">PDF Attached</p>
+                        <p className="text-xs text-gray-500">ID: {test.google_drive_id}</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <a
+                        href={`https://drive.google.com/file/d/${test.google_drive_id}/view`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:text-blue-700 p-1"
+                        title="Preview PDF"
+                      >
+                        <ExternalLink size={18} />
+                      </a>
+                      <button
+                        onClick={clearPdfAttachment}
+                        className="text-red-600 hover:text-red-700 p-1"
+                        title="Remove PDF"
+                      >
+                        <X size={18} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {test.thumbnail_url && (
+                    <img
+                      src={test.thumbnail_url}
+                      alt="PDF Thumbnail"
+                      className="w-32 h-32 object-cover rounded border border-gray-200"
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                      }}
+                    />
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="bg-white rounded-lg shadow p-6 mb-6">
