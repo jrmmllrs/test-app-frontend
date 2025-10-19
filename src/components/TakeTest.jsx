@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Clock, Shield, AlertTriangle, CheckCircle } from "lucide-react";
+import { Clock, Shield, AlertTriangle, CheckCircle, FileText, ExternalLink } from "lucide-react";
 import { API_BASE_URL } from "../constants";
 import { useTimer } from "../hooks/useTimer";
 
@@ -158,7 +158,8 @@ export default function TakeTest({
   const [fullscreenWarning, setFullscreenWarning] = useState(false);
   const [testBlocked, setTestBlocked] = useState(false);
   const [testStatus, setTestStatus] = useState(null);
-  const [questionTypes, setQuestionTypes] = useState([]); // NEW: Question types state
+  const [questionTypes, setQuestionTypes] = useState([]);
+  const [showPdfModal, setShowPdfModal] = useState(false);
   
   const [initialTime, setInitialTime] = useState(null);
 
@@ -167,7 +168,6 @@ export default function TakeTest({
   const testRef = useRef(null);
   const testStatusRef = useRef(null);
 
-  // NEW: Fetch question types on mount
   useEffect(() => {
     fetchQuestionTypes();
   }, []);
@@ -182,7 +182,6 @@ export default function TakeTest({
     }
   }, [testId, invitationToken]);
 
-  // NEW: Fetch question types function
   const fetchQuestionTypes = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/question-types`, {
@@ -497,7 +496,6 @@ export default function TakeTest({
     );
   }
 
-  // Show success screen after submission
   if (submitted && submission) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
@@ -662,7 +660,64 @@ export default function TakeTest({
           </div>
         </div>
 
-        {/* UPDATED: Pass questionTypes to QuestionCard */}
+        {/* PDF SECTION - Only show for PDF-based tests */}
+        {test?.test_type === 'pdf_based' && test?.google_drive_id && (
+          <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-6 mb-6">
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <div className="flex-1">
+                <h3 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
+                  <FileText size={20} />
+                  Reference Document
+                </h3>
+                <p className="text-sm text-blue-700 mb-3">
+                  Review this document before answering the questions below.
+                </p>
+                
+                <div className="flex gap-2">
+                  <a
+                    href={`https://drive.google.com/file/d/${test.google_drive_id}/view`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-medium flex items-center gap-2"
+                  >
+                    <ExternalLink size={16} />
+                    Open PDF in New Tab
+                  </a>
+                  
+                  <button
+                    onClick={() => setShowPdfModal(true)}
+                    className="px-4 py-2 bg-white text-blue-600 border border-blue-600 rounded hover:bg-blue-50 text-sm font-medium"
+                  >
+                    View in Modal
+                  </button>
+                </div>
+              </div>
+              
+              {test.thumbnail_url && (
+                <img
+                  src={test.thumbnail_url}
+                  alt="PDF Thumbnail"
+                  className="w-24 h-24 object-cover rounded border border-blue-200"
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                  }}
+                />
+              )}
+            </div>
+            
+            {/* Embedded PDF Preview */}
+            <div className="border-2 border-blue-300 rounded-lg overflow-hidden bg-white">
+              <iframe
+                src={`https://drive.google.com/file/d/${test.google_drive_id}/preview`}
+                className="w-full h-96"
+                allow="autoplay"
+                title="Test Reference Document"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Questions */}
         {test?.questions.map((question, index) => (
           <QuestionCard
             key={question.id}
@@ -689,13 +744,41 @@ export default function TakeTest({
           </button>
         </div>
       </div>
+
+      {/* PDF Modal for fullscreen viewing */}
+      {showPdfModal && test?.google_drive_id && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg w-full max-w-6xl h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                <FileText size={20} />
+                Reference Document
+              </h3>
+              <button
+                onClick={() => setShowPdfModal(false)}
+                className="text-gray-500 hover:text-gray-700 p-1"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <iframe
+                src={`https://drive.google.com/file/d/${test.google_drive_id}/preview`}
+                className="w-full h-full"
+                allow="autoplay"
+                title="Test Reference Document - Full View"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-// UPDATED: QuestionCard component with dynamic question type handling
 function QuestionCard({ question, index, answer, onAnswerChange, questionTypes = [] }) {
-  // NEW: Get question type details
   const questionType = questionTypes.find(qt => qt.type_key === question.question_type);
   const requiresOptions = questionType?.requires_options || false;
 
@@ -709,7 +792,6 @@ function QuestionCard({ question, index, answer, onAnswerChange, questionTypes =
           <p className="text-gray-900 font-medium">
             {question.question_text}
           </p>
-          {/* NEW: Show question type badge */}
           {questionType && (
             <span className="inline-block mt-2 text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
               {questionType.type_name}
@@ -718,7 +800,6 @@ function QuestionCard({ question, index, answer, onAnswerChange, questionTypes =
         </div>
       </div>
 
-      {/* UPDATED: Show options only if question type requires them */}
       {requiresOptions && Array.isArray(question.options) && question.options.length > 0 && (
         <div className="space-y-2 ml-12">
           {question.options.map((option, i) => (
@@ -740,7 +821,6 @@ function QuestionCard({ question, index, answer, onAnswerChange, questionTypes =
         </div>
       )}
 
-      {/* UPDATED: Show text area for non-option question types */}
       {!requiresOptions && (
         <textarea
           value={answer || ""}

@@ -22,19 +22,65 @@ export default function Dashboard({ user, token, onLogout, onNavigate }) {
 
   const fetchTests = async () => {
     try {
-      const endpoint =
-        user?.role === "candidate"
-          ? `${API_BASE_URL}/api/tests/available`
-          : `${API_BASE_URL}/api/tests/my-tests`;
+      if (user?.role === "candidate") {
+        // Candidates only see tests assigned to them
+        const response = await fetch(`${API_BASE_URL}/api/tests/available`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await response.json();
+        if (data.success) {
+          setTests(data.tests);
+          console.log("Candidate tests:", data.tests);
+        } else {
+          console.error("Failed to fetch tests:", data.message);
+        }
+      } else if (user?.role === "employer" || user?.role === "admin") {
+        // Employers/Admins see:
+        // 1. Tests they created (my-tests)
+        // 2. Tests they can take (available with target_role='employer')
+        
+        const [myTestsRes, availableTestsRes] = await Promise.all([
+          fetch(`${API_BASE_URL}/api/tests/my-tests`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(`${API_BASE_URL}/api/tests/available`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ]);
 
-      const response = await fetch(endpoint, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await response.json();
-      if (data.success) {
-        setTests(data.tests);
-      } else {
-        console.error("Failed to fetch tests:", data.message);
+        const myTestsData = await myTestsRes.json();
+        const availableTestsData = await availableTestsRes.json();
+
+        console.log("My tests:", myTestsData.tests);
+        console.log("Available tests:", availableTestsData.tests);
+
+        // Merge both lists, removing duplicates by ID
+        const allTests = [...(myTestsData.tests || [])];
+        const myTestIds = new Set(allTests.map(t => t.id));
+        
+        // Add available tests that aren't already in myTests
+        // Mark them so we know they're available to take
+        if (availableTestsData.success && availableTestsData.tests) {
+          availableTestsData.tests.forEach(test => {
+            if (!myTestIds.has(test.id)) {
+              allTests.push({
+                ...test, 
+                is_available_to_take: true,
+                created_by_me: false
+              });
+            }
+          });
+        }
+
+        // Mark tests created by user
+        allTests.forEach(test => {
+          if (myTestIds.has(test.id)) {
+            test.created_by_me = true;
+          }
+        });
+
+        setTests(allTests);
+        console.log("Merged tests for employer:", allTests);
       }
     } catch (err) {
       console.error("Error fetching tests:", err);
@@ -104,13 +150,13 @@ export default function Dashboard({ user, token, onLogout, onNavigate }) {
                 <h3 className="text-sm font-medium text-green-900 mb-2">
                   {user?.role === "candidate"
                     ? "Available Tests"
-                    : "Tests Created"}
+                    : "Total Tests"}
                 </h3>
                 <p className="text-2xl font-bold text-green-900">
                   {tests.length}
                 </p>
                 <p className="text-sm text-green-700 mt-1">
-                  {user?.role === "candidate" ? "Ready to take" : "Total tests"}
+                  {user?.role === "candidate" ? "Ready to take" : "Created & Available"}
                 </p>
               </div>
 
@@ -143,7 +189,6 @@ export default function Dashboard({ user, token, onLogout, onNavigate }) {
                         <Users size={20} />
                         View All Results
                       </button>
-                      {/* ADD THIS NEW BUTTON */}
                       <button
                         onClick={() => onNavigate("question-type-manager")}
                         className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 flex items-center gap-2"
@@ -154,7 +199,7 @@ export default function Dashboard({ user, token, onLogout, onNavigate }) {
                     </>
                   )}
 
-                  {(user?.role === "employer" || user?.role === "admin") && (
+                  {(user?.role === "admin") && (
                     <button
                       onClick={() => onNavigate("create-test")}
                       className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-2"
@@ -216,10 +261,11 @@ function TestCard({ test, user, userRole, onNavigate, onInvite, token }) {
   const API_BASE_URL = "http://localhost:5000";
 
   useEffect(() => {
-    if (userRole === "employer" || userRole === "admin") {
+    // Only fetch invitations if user created this test
+    if ((userRole === "employer" || userRole === "admin") && test.created_by_me) {
       fetchInvitationCount();
     }
-  }, [test.id, userRole]);
+  }, [test.id, userRole, test.created_by_me]);
 
   const fetchInvitationCount = async () => {
     try {
@@ -274,9 +320,33 @@ function TestCard({ test, user, userRole, onNavigate, onInvite, token }) {
     }
   };
 
+  // Determine if this is a test the employer can take
+  const canTakeTest = test.is_available_to_take && !test.created_by_me;
+
   return (
     <div className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow bg-white">
-      <h4 className="font-semibold text-gray-900 text-lg">{test.title}</h4>
+      <div className="flex items-start justify-between mb-2">
+        <h4 className="font-semibold text-gray-900 text-lg">{test.title}</h4>
+        {/* Show badges for test type and target */}
+        <div className="flex flex-col gap-1">
+          {test.test_type === 'pdf_based' && (
+            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
+              PDF Test
+            </span>
+          )}
+          {test.target_role === 'employer' && (
+            <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">
+              For Staff
+            </span>
+          )}
+          {canTakeTest && (
+            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">
+              Available
+            </span>
+          )}
+        </div>
+      </div>
+      
       <p className="text-sm text-gray-600 mt-2 line-clamp-2">
         {test.description || "No description"}
       </p>
@@ -293,6 +363,9 @@ function TestCard({ test, user, userRole, onNavigate, onInvite, token }) {
         {userRole === "candidate" && test.created_by_name && (
           <p className="text-xs text-gray-500">By: {test.created_by_name}</p>
         )}
+        {test.created_by_name && canTakeTest && (
+          <p className="text-xs text-gray-500">Created by: {test.created_by_name}</p>
+        )}
         {userRole === "candidate" && test.is_completed && (
           <div className="flex items-center gap-2 text-sm text-green-600 font-medium">
             <CheckCircle size={16} />
@@ -304,54 +377,85 @@ function TestCard({ test, user, userRole, onNavigate, onInvite, token }) {
       <div className="mt-4 pt-4 border-t border-gray-200">
         {userRole === "employer" || userRole === "admin" ? (
           <div className="space-y-2">
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={() => handleNavigate("view-test", test.id)}
-                className="px-3 py-2 text-sm text-gray-700 bg-gray-100 rounded hover:bg-gray-200 flex items-center justify-center gap-1"
-              >
-                <Eye size={14} />
-                View
-              </button>
-              <button
-                onClick={() => handleNavigate("test-results", test.id)}
-                className="px-3 py-2 text-sm text-blue-700 bg-blue-50 rounded hover:bg-blue-100 flex items-center justify-center gap-1"
-              >
-                <CheckCircle size={14} />
-                Results
-              </button>
-            </div>
+            {/* If employer can take this test (not created by them) */}
+            {canTakeTest ? (
+              <div className="space-y-2">
+                {test.is_completed ? (
+                  <button
+                    onClick={() => handleNavigate("answer-review", test.id, user.id)}
+                    className="w-full px-4 py-2 text-sm text-white bg-blue-600 rounded hover:bg-blue-700 font-medium flex items-center justify-center gap-2"
+                  >
+                    <FileText size={16} />
+                    View Answer Review
+                  </button>
+                ) : test.is_in_progress ? (
+                  <button
+                    onClick={() => handleNavigate("take-test", test.id)}
+                    className="w-full px-4 py-2 text-sm text-white bg-yellow-600 rounded hover:bg-yellow-700 font-medium"
+                  >
+                    Continue Test
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleNavigate("take-test", test.id)}
+                    className="w-full px-4 py-2 text-sm text-white bg-green-600 rounded hover:bg-green-700 font-medium"
+                  >
+                    Take Test
+                  </button>
+                )}
+              </div>
+            ) : (
+              /* Show management buttons for tests created by employer */
+              <>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => handleNavigate("view-test", test.id)}
+                    className="px-3 py-2 text-sm text-gray-700 bg-gray-100 rounded hover:bg-gray-200 flex items-center justify-center gap-1"
+                  >
+                    <Eye size={14} />
+                    View
+                  </button>
+                  <button
+                    onClick={() => handleNavigate("test-results", test.id)}
+                    className="px-3 py-2 text-sm text-blue-700 bg-blue-50 rounded hover:bg-blue-100 flex items-center justify-center gap-1"
+                  >
+                    <CheckCircle size={14} />
+                    Results
+                  </button>
+                </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={() => onInvite(test)}
-                className="px-3 py-2 text-sm text-white bg-green-600 rounded hover:bg-green-700 flex items-center justify-center gap-1"
-              >
-                <Mail size={14} />
-                Invite
-              </button>
-              <button
-                onClick={fetchInvitations}
-                className="px-3 py-2 text-sm text-purple-700 bg-purple-50 rounded hover:bg-purple-100 flex items-center justify-center gap-1"
-              >
-                <Users size={14} />
-                Invites ({invitationCount})
-              </button>
-            </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => onInvite(test)}
+                    className="px-3 py-2 text-sm text-white bg-green-600 rounded hover:bg-green-700 flex items-center justify-center gap-1"
+                  >
+                    <Mail size={14} />
+                    Invite
+                  </button>
+                  <button
+                    onClick={fetchInvitations}
+                    className="px-3 py-2 text-sm text-purple-700 bg-purple-50 rounded hover:bg-purple-100 flex items-center justify-center gap-1"
+                  >
+                    <Users size={14} />
+                    Invites ({invitationCount})
+                  </button>
+                </div>
 
-            <button
-              onClick={() => handleNavigate("proctoring-events", test.id, null)}
-              className="w-full px-3 py-2 text-sm text-red-700 bg-red-50 rounded hover:bg-red-100"
-            >
-              View Proctoring Events
-            </button>
+                <button
+                  onClick={() => handleNavigate("proctoring-events", test.id, null)}
+                  className="w-full px-3 py-2 text-sm text-red-700 bg-red-50 rounded hover:bg-red-100"
+                >
+                  View Proctoring Events
+                </button>
+              </>
+            )}
           </div>
         ) : (
+          /* Candidate view */
           <div className="space-y-2">
             {test.is_completed ? (
               <button
-                onClick={() =>
-                  handleNavigate("answer-review", test.id, user.id)
-                }
+                onClick={() => handleNavigate("answer-review", test.id, user.id)}
                 className="w-full px-4 py-2 text-sm text-white bg-blue-600 rounded hover:bg-blue-700 font-medium flex items-center justify-center gap-2"
               >
                 <FileText size={16} />
