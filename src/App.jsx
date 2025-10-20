@@ -11,6 +11,7 @@ import AnswerReview from "./components/ReviewAnswers";
 import QuestionTypeManager from "./components/QuestionTypeManager";
 import ViewTest from "./components/ViewTest";
 import TestResults from "./components/TestResults";
+import UserManagement from "./components/UserManagement";
 import { VIEWS } from "./constants/views";
 import { useAuth } from "./hooks/useAuth";
 import { useInvitation } from "./hooks/useInvitation";
@@ -238,6 +239,16 @@ export default function App() {
         <>
           {console.log("Rendering QUESTION_TYPE_MANAGER")}
           <QuestionTypeManager
+            token={token}
+            onBack={() => handleNavigate(VIEWS.DASHBOARD)}
+          />
+        </>
+      )}
+
+      {currentView === VIEWS.USER_MANAGEMENT && (
+        <>
+          {console.log("Rendering USER_MANAGEMENT")}
+          <UserManagement
             token={token}
             onBack={() => handleNavigate(VIEWS.DASHBOARD)}
           />
