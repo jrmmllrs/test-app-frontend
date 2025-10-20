@@ -13,9 +13,11 @@ export default function EditTest({ testId, token, onBack }) {
     thumbnail_url: "",
     test_type: "standard",
     target_role: "candidate",
+    department_id: "",
     questions: [],
   });
   const [questionTypes, setQuestionTypes] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -23,6 +25,7 @@ export default function EditTest({ testId, token, onBack }) {
 
   useEffect(() => {
     fetchQuestionTypes();
+    fetchDepartments();
     fetchTest();
   }, [testId]);
 
@@ -37,7 +40,6 @@ export default function EditTest({ testId, token, onBack }) {
       }
       
       const data = await response.json();
-      console.log("Question types response:", data);
       
       if (data.success && data.questionTypes && data.questionTypes.length > 0) {
         setQuestionTypes(data.questionTypes);
@@ -88,6 +90,18 @@ export default function EditTest({ testId, token, onBack }) {
     }
   };
 
+  const fetchDepartments = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/departments`);
+      const data = await response.json();
+      if (data.success) {
+        setDepartments(data.departments);
+      }
+    } catch (error) {
+      console.error("Error fetching departments:", error);
+    }
+  };
+
   const fetchTest = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/tests/${testId}`, {
@@ -104,6 +118,7 @@ export default function EditTest({ testId, token, onBack }) {
           thumbnail_url: data.test.thumbnail_url || "",
           test_type: data.test.test_type || "standard",
           target_role: data.test.target_role || "candidate",
+          department_id: data.test.department_id || "",
           questions: data.test.questions.map(q => ({
             ...q,
             question_type: q.question_type || "multiple_choice",
@@ -133,7 +148,6 @@ export default function EditTest({ testId, token, onBack }) {
     setTest((prev) => ({ ...prev, [field]: value || "" }));
   };
 
-  // Extract Google Drive ID from various URL formats
   const extractDriveId = (url) => {
     if (!url) return "";
     const patterns = [
@@ -278,6 +292,11 @@ export default function EditTest({ testId, token, onBack }) {
       return false;
     }
 
+    if (test.target_role === 'candidate' && !test.department_id) {
+      setError("Department is required for candidate tests");
+      return false;
+    }
+
     if (test.questions.length === 0) {
       setError("Add at least one question");
       return false;
@@ -352,6 +371,7 @@ export default function EditTest({ testId, token, onBack }) {
           thumbnail_url: test.thumbnail_url || null,
           test_type: test.test_type,
           target_role: test.target_role,
+          department_id: test.department_id || null,
           questions: cleanedQuestions,
         }),
       });
@@ -459,7 +479,6 @@ export default function EditTest({ testId, token, onBack }) {
             />
           </div>
 
-          {/* Test Type Selection */}
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Test Type
@@ -472,14 +491,8 @@ export default function EditTest({ testId, token, onBack }) {
               <option value="standard">Standard Test</option>
               <option value="pdf_based">PDF-Based Test</option>
             </select>
-            <p className="text-xs text-gray-500 mt-1">
-              {test.test_type === "pdf_based" 
-                ? "PDF-based tests include a reference document" 
-                : "Standard test with questions only"}
-            </p>
           </div>
 
-          {/* Target Role Selection */}
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Target Audience
@@ -492,14 +505,31 @@ export default function EditTest({ testId, token, onBack }) {
               <option value="candidate">Candidates</option>
               <option value="employer">Employers/Staff</option>
             </select>
-            <p className="text-xs text-gray-500 mt-1">
-              {test.target_role === "employer" 
-                ? "This test will be visible to employers and staff members" 
-                : "This test will be available to candidates"}
-            </p>
           </div>
 
-          {/* PDF Upload Section (only show for pdf_based tests) */}
+          {test.target_role === 'candidate' && (
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Department *
+              </label>
+              <select
+                value={test.department_id}
+                onChange={(e) => handleTestInfoChange("department_id", e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">Select a department</option>
+                {departments.map((dept) => (
+                  <option key={dept.id} value={dept.id}>
+                    {dept.department_name}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                This test will only be visible to candidates in the selected department
+              </p>
+            </div>
+          )}
+
           {test.test_type === "pdf_based" && (
             <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 bg-gray-50">
               <div className="flex items-center gap-2 mb-3">
@@ -554,17 +584,6 @@ export default function EditTest({ testId, token, onBack }) {
                       </button>
                     </div>
                   </div>
-
-                  {test.thumbnail_url && (
-                    <img
-                      src={test.thumbnail_url}
-                      alt="PDF Thumbnail"
-                      className="w-32 h-32 object-cover rounded border border-gray-200"
-                      onError={(e) => {
-                        e.target.style.display = 'none';
-                      }}
-                    />
-                  )}
                 </div>
               )}
             </div>
