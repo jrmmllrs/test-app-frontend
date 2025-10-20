@@ -7,6 +7,7 @@ import {
   Users,
   Eye,
   FileText,
+  Building,
 } from "lucide-react";
 
 export default function Dashboard({ user, token, onLogout, onNavigate }) {
@@ -14,16 +15,27 @@ export default function Dashboard({ user, token, onLogout, onNavigate }) {
   const [loading, setLoading] = useState(true);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [selectedTestForInvite, setSelectedTestForInvite] = useState(null);
+  const [userDepartment, setUserDepartment] = useState(null);
   const API_BASE_URL = "http://localhost:5000";
 
   useEffect(() => {
+    fetchUserDepartment();
     fetchTests();
   }, []);
+
+  const fetchUserDepartment = async () => {
+    try {
+      if (user?.role === "candidate" && user?.department_name) {
+        setUserDepartment(user.department_name);
+      }
+    } catch (error) {
+      console.error("Error setting user department:", error);
+    }
+  };
 
   const fetchTests = async () => {
     try {
       if (user?.role === "candidate") {
-        // Candidates only see tests assigned to them
         const response = await fetch(`${API_BASE_URL}/api/tests/available`, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -35,10 +47,6 @@ export default function Dashboard({ user, token, onLogout, onNavigate }) {
           console.error("Failed to fetch tests:", data.message);
         }
       } else if (user?.role === "employer" || user?.role === "admin") {
-        // Employers/Admins see:
-        // 1. Tests they created (my-tests)
-        // 2. Tests they can take (available with target_role='employer')
-
         const [myTestsRes, availableTestsRes] = await Promise.all([
           fetch(`${API_BASE_URL}/api/tests/my-tests`, {
             headers: { Authorization: `Bearer ${token}` },
@@ -51,15 +59,9 @@ export default function Dashboard({ user, token, onLogout, onNavigate }) {
         const myTestsData = await myTestsRes.json();
         const availableTestsData = await availableTestsRes.json();
 
-        console.log("My tests:", myTestsData.tests);
-        console.log("Available tests:", availableTestsData.tests);
-
-        // Merge both lists, removing duplicates by ID
         const allTests = [...(myTestsData.tests || [])];
         const myTestIds = new Set(allTests.map((t) => t.id));
 
-        // Add available tests that aren't already in myTests
-        // Mark them so we know they're available to take
         if (availableTestsData.success && availableTestsData.tests) {
           availableTestsData.tests.forEach((test) => {
             if (!myTestIds.has(test.id)) {
@@ -72,7 +74,6 @@ export default function Dashboard({ user, token, onLogout, onNavigate }) {
           });
         }
 
-        // Mark tests created by user
         allTests.forEach((test) => {
           if (myTestIds.has(test.id)) {
             test.created_by_me = true;
@@ -80,7 +81,6 @@ export default function Dashboard({ user, token, onLogout, onNavigate }) {
         });
 
         setTests(allTests);
-        console.log("Merged tests for employer:", allTests);
       }
     } catch (err) {
       console.error("Error fetching tests:", err);
@@ -114,6 +114,12 @@ export default function Dashboard({ user, token, onLogout, onNavigate }) {
             </div>
             <div className="flex items-center gap-4">
               <span className="text-gray-700">{user?.email}</span>
+              {user?.role === "candidate" && userDepartment && (
+                <div className="flex items-center gap-2 text-sm text-gray-600 bg-blue-50 px-3 py-1 rounded">
+                  <Building size={16} />
+                  <span>{userDepartment}</span>
+                </div>
+              )}
               <span className="text-sm text-gray-500 capitalize">
                 ({user?.role})
               </span>
@@ -144,6 +150,12 @@ export default function Dashboard({ user, token, onLogout, onNavigate }) {
                 <p className="text-sm text-blue-700 mt-1 capitalize">
                   Role: {user?.role}
                 </p>
+                {user?.role === "candidate" && userDepartment && (
+                  <p className="text-sm text-blue-700 mt-1 flex items-center gap-1">
+                    <Building size={14} />
+                    Department: {userDepartment}
+                  </p>
+                )}
               </div>
 
               <div className="bg-green-50 rounded-lg p-6">
@@ -157,7 +169,7 @@ export default function Dashboard({ user, token, onLogout, onNavigate }) {
                 </p>
                 <p className="text-sm text-green-700 mt-1">
                   {user?.role === "candidate"
-                    ? "Ready to take"
+                    ? "For your department"
                     : "Created & Available"}
                 </p>
               </div>
@@ -228,7 +240,7 @@ export default function Dashboard({ user, token, onLogout, onNavigate }) {
                 <div className="text-center py-8 bg-gray-50 rounded-lg">
                   <p className="text-gray-600">
                     {user?.role === "candidate"
-                      ? "No tests available at the moment"
+                      ? "No tests available for your department at the moment"
                       : "No tests created yet. Click 'Create New Test' to get started!"}
                   </p>
                 </div>
@@ -270,7 +282,6 @@ function TestCard({ test, user, userRole, onNavigate, onInvite, token }) {
   const API_BASE_URL = "http://localhost:5000";
 
   useEffect(() => {
-    // Only fetch invitations if user created this test
     if (
       (userRole === "employer" || userRole === "admin") &&
       test.created_by_me
@@ -318,8 +329,6 @@ function TestCard({ test, user, userRole, onNavigate, onInvite, token }) {
   };
 
   const handleNavigate = (view, id, additionalParam = null) => {
-    console.log("Navigation clicked:", { view, id, additionalParam });
-
     try {
       if (additionalParam !== null) {
         onNavigate(view, id, additionalParam);
@@ -332,14 +341,12 @@ function TestCard({ test, user, userRole, onNavigate, onInvite, token }) {
     }
   };
 
-  // Determine if this is a test the employer can take
   const canTakeTest = test.is_available_to_take && !test.created_by_me;
 
   return (
     <div className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow bg-white">
       <div className="flex items-start justify-between mb-2">
         <h4 className="font-semibold text-gray-900 text-lg">{test.title}</h4>
-        {/* Show badges for test type and target */}
         <div className="flex flex-col gap-1">
           {test.test_type === "pdf_based" && (
             <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
@@ -372,6 +379,12 @@ function TestCard({ test, user, userRole, onNavigate, onInvite, token }) {
           <Clock size={16} className="text-blue-600" />
           <span>{test.time_limit} minutes</span>
         </div>
+        {test.department_name && (
+          <div className="flex items-center gap-2 text-sm text-gray-600">
+            <Building size={16} className="text-purple-600" />
+            <span>{test.department_name}</span>
+          </div>
+        )}
         {userRole === "candidate" && test.created_by_name && (
           <p className="text-xs text-gray-500">By: {test.created_by_name}</p>
         )}
@@ -391,7 +404,6 @@ function TestCard({ test, user, userRole, onNavigate, onInvite, token }) {
       <div className="mt-4 pt-4 border-t border-gray-200">
         {userRole === "employer" || userRole === "admin" ? (
           <div className="space-y-2">
-            {/* If employer can take this test (not created by them) */}
             {canTakeTest ? (
               <div className="space-y-2">
                 {test.is_completed ? (
@@ -421,7 +433,6 @@ function TestCard({ test, user, userRole, onNavigate, onInvite, token }) {
                 )}
               </div>
             ) : (
-              /* Show management buttons for tests created by employer */
               <>
                 <div className="grid grid-cols-2 gap-2">
                   <button
@@ -469,7 +480,6 @@ function TestCard({ test, user, userRole, onNavigate, onInvite, token }) {
             )}
           </div>
         ) : (
-          /* Candidate view */
           <div className="space-y-2">
             {test.is_completed ? (
               <button

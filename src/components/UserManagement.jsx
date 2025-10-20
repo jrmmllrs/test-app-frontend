@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { X, Edit2, Trash2, Plus, Search, UserPlus, Mail, Shield } from 'lucide-react';
+import { X, Edit2, Trash2, Plus, Search, UserPlus, Mail, Shield, Building } from 'lucide-react';
 
 export default function UserManagement({ token, onBack }) {
   const [users, setUsers] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState('all');
@@ -16,27 +17,36 @@ export default function UserManagement({ token, onBack }) {
     name: '',
     email: '',
     password: '',
-    role: 'candidate'
+    role: 'candidate',
+    department_id: ''
   });
 
   useEffect(() => {
-    fetchUsers();
+    fetchData();
   }, []);
 
-  const fetchUsers = async () => {
+  const fetchData = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users/all`, {
+      // Fetch departments
+      const deptResponse = await fetch(`${API_BASE_URL}/api/users/departments`);
+      const deptData = await deptResponse.json();
+      if (deptData.success) {
+        setDepartments(deptData.departments);
+      }
+
+      // Fetch users
+      const usersResponse = await fetch(`${API_BASE_URL}/api/users/all`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      const data = await response.json();
-      if (data.success) {
-        setUsers(data.users);
+      const usersData = await usersResponse.json();
+      if (usersData.success) {
+        setUsers(usersData.users);
       } else {
         setMessage({ type: 'error', text: 'Failed to load users' });
       }
     } catch (error) {
-      console.error('Error fetching users:', error);
-      setMessage({ type: 'error', text: 'Failed to load users' });
+      console.error('Error fetching data:', error);
+      setMessage({ type: 'error', text: 'Failed to load data' });
     } finally {
       setLoading(false);
     }
@@ -44,7 +54,7 @@ export default function UserManagement({ token, onBack }) {
 
   const openCreateModal = () => {
     setModalMode('create');
-    setFormData({ name: '', email: '', password: '', role: 'candidate' });
+    setFormData({ name: '', email: '', password: '', role: 'candidate', department_id: '' });
     setCurrentUser(null);
     setShowModal(true);
   };
@@ -55,7 +65,8 @@ export default function UserManagement({ token, onBack }) {
       name: user.name,
       email: user.email,
       password: '',
-      role: user.role
+      role: user.role,
+      department_id: user.department_id || ''
     });
     setCurrentUser(user);
     setShowModal(true);
@@ -63,7 +74,7 @@ export default function UserManagement({ token, onBack }) {
 
   const closeModal = () => {
     setShowModal(false);
-    setFormData({ name: '', email: '', password: '', role: 'candidate' });
+    setFormData({ name: '', email: '', password: '', role: 'candidate', department_id: '' });
     setCurrentUser(null);
   };
 
@@ -78,13 +89,18 @@ export default function UserManagement({ token, onBack }) {
       return;
     }
 
+    if (formData.role === 'candidate' && !formData.department_id) {
+      setMessage({ type: 'error', text: 'Department is required for candidates' });
+      return;
+    }
+
     try {
       const url = modalMode === 'create' 
         ? `${API_BASE_URL}/api/users/create`
         : `${API_BASE_URL}/api/users/update/${currentUser.id}`;
       
       const payload = modalMode === 'edit' && !formData.password.trim()
-        ? { name: formData.name, email: formData.email, role: formData.role }
+        ? { name: formData.name, email: formData.email, role: formData.role, department_id: formData.department_id }
         : formData;
 
       const response = await fetch(url, {
@@ -103,7 +119,7 @@ export default function UserManagement({ token, onBack }) {
           type: 'success', 
           text: `User ${modalMode === 'create' ? 'created' : 'updated'} successfully!` 
         });
-        fetchUsers();
+        fetchData();
         closeModal();
         setTimeout(() => setMessage({ type: '', text: '' }), 3000);
       } else {
@@ -130,7 +146,7 @@ export default function UserManagement({ token, onBack }) {
       
       if (data.success) {
         setMessage({ type: 'success', text: 'User deleted successfully!' });
-        fetchUsers();
+        fetchData();
         setTimeout(() => setMessage({ type: '', text: '' }), 3000);
       } else {
         setMessage({ type: 'error', text: data.message || 'Delete failed' });
@@ -246,6 +262,7 @@ export default function UserManagement({ token, onBack }) {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
@@ -253,7 +270,7 @@ export default function UserManagement({ token, onBack }) {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filteredUsers.length === 0 ? (
                     <tr>
-                      <td colSpan="5" className="px-6 py-8 text-center text-gray-500">
+                      <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
                         No users found
                       </td>
                     </tr>
@@ -280,6 +297,16 @@ export default function UserManagement({ token, onBack }) {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <RoleBadge role={user.role} />
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {user.department_name ? (
+                            <div className="flex items-center gap-2 text-sm text-gray-900">
+                              <Building size={16} className="text-gray-400" />
+                              {user.department_name}
+                            </div>
+                          ) : (
+                            <span className="text-sm text-gray-500">-</span>
+                          )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           {new Date(user.created_at).toLocaleDateString()}
@@ -370,7 +397,7 @@ export default function UserManagement({ token, onBack }) {
                 </label>
                 <select
                   value={formData.role}
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, role: e.target.value, department_id: e.target.value === 'candidate' ? formData.department_id : '' })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   <option value="candidate">Candidate</option>
@@ -378,6 +405,26 @@ export default function UserManagement({ token, onBack }) {
                   <option value="admin">Admin</option>
                 </select>
               </div>
+
+              {formData.role === 'candidate' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Department * {formData.role === 'candidate' && '(Required for Candidates)'}
+                  </label>
+                  <select
+                    value={formData.department_id}
+                    onChange={(e) => setFormData({ ...formData, department_id: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="">Select a department</option>
+                    {departments.map((dept) => (
+                      <option key={dept.id} value={dept.id}>
+                        {dept.department_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div className="flex gap-3 pt-4">
                 <button
