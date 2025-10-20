@@ -19,9 +19,11 @@ export default function CreateTest({ user, token, onBack }) {
     thumbnail_url: "",
     test_type: "standard",
     target_role: "candidate",
+    department_id: "",
   });
   const [questions, setQuestions] = useState([]);
   const [questionTypes, setQuestionTypes] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [showQuestionForm, setShowQuestionForm] = useState(false);
   const [currentQuestion, setCurrentQuestion] = useState({
     question_text: "",
@@ -35,26 +37,21 @@ export default function CreateTest({ user, token, onBack }) {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState({ type: "", text: "" });
 
-  // Fetch question types on component mount
   useEffect(() => {
-    fetchQuestionTypes();
+    fetchInitialData();
   }, []);
 
-  const fetchQuestionTypes = async () => {
+  const fetchInitialData = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/question-types`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+      // Fetch question types
+      const qTypesResponse = await fetch(`${API_BASE_URL}/question-types`, {
+        headers: { Authorization: `Bearer ${token}` },
       });
-
-      const data = await response.json();
-
-      if (data.success) {
-        setQuestionTypes(data.questionTypes);
-        // Set default question type to first available type
-        if (data.questionTypes.length > 0) {
-          const defaultType = data.questionTypes[0];
+      const qTypesData = await qTypesResponse.json();
+      if (qTypesData.success) {
+        setQuestionTypes(qTypesData.questionTypes);
+        if (qTypesData.questionTypes.length > 0) {
+          const defaultType = qTypesData.questionTypes[0];
           setCurrentQuestion((prev) => ({
             ...prev,
             question_type: defaultType.type_key,
@@ -65,12 +62,17 @@ export default function CreateTest({ user, token, onBack }) {
               : [],
           }));
         }
-      } else {
-        setMessage({ type: "error", text: "Failed to load question types" });
+      }
+
+      // Fetch departments
+      const deptResponse = await fetch(`${API_BASE_URL}/users/departments`);
+      const deptData = await deptResponse.json();
+      if (deptData.success) {
+        setDepartments(deptData.departments);
       }
     } catch (error) {
-      console.error("Error fetching question types:", error);
-      setMessage({ type: "error", text: "Failed to load question types" });
+      console.error("Error fetching initial data:", error);
+      setMessage({ type: "error", text: "Failed to load question types or departments" });
     } finally {
       setLoading(false);
     }
@@ -80,7 +82,6 @@ export default function CreateTest({ user, token, onBack }) {
     setTestData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
-  // Extract Google Drive ID from various URL formats
   const extractDriveId = (url) => {
     if (!url) return "";
     const patterns = [
@@ -257,9 +258,13 @@ export default function CreateTest({ user, token, onBack }) {
       return;
     }
 
-    // Validate PDF test requirements
     if (testData.test_type === 'pdf_based' && !testData.pdf_url.trim()) {
       setMessage({ type: "error", text: "PDF URL is required for PDF-based tests" });
+      return;
+    }
+
+    if (testData.target_role === 'candidate' && !testData.department_id) {
+      setMessage({ type: "error", text: "Department is required for candidate tests" });
       return;
     }
 
@@ -275,6 +280,7 @@ export default function CreateTest({ user, token, onBack }) {
         thumbnail_url: testData.thumbnail_url || null,
         test_type: testData.test_type,
         target_role: testData.target_role,
+        department_id: testData.department_id || null,
         questions: questions.map((q) => {
           const questionType = questionTypes.find(
             (t) => t.type_key === q.question_type
@@ -321,6 +327,7 @@ export default function CreateTest({ user, token, onBack }) {
           thumbnail_url: "",
           test_type: "standard",
           target_role: "candidate",
+          department_id: "",
         });
         setQuestions([]);
         setMessage({ type: "", text: "" });
@@ -339,7 +346,7 @@ export default function CreateTest({ user, token, onBack }) {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-lg">Loading question types...</div>
+        <div className="text-lg">Loading...</div>
       </div>
     );
   }
@@ -399,11 +406,6 @@ export default function CreateTest({ user, token, onBack }) {
                   <option value="standard">Standard Test</option>
                   <option value="pdf_based">PDF-Based Test</option>
                 </select>
-                <p className="text-xs text-gray-500 mt-1">
-                  {testData.test_type === "pdf_based" 
-                    ? "PDF-based tests include a reference document" 
-                    : "Standard test with questions only"}
-                </p>
               </div>
 
               {/* Target Role Selection */}
@@ -420,14 +422,34 @@ export default function CreateTest({ user, token, onBack }) {
                   <option value="candidate">Candidates</option>
                   <option value="employer">Employers/Staff</option>
                 </select>
-                <p className="text-xs text-gray-500 mt-1">
-                  {testData.target_role === "employer" 
-                    ? "This test will be visible to employers and staff members" 
-                    : "This test will be available to candidates"}
-                </p>
               </div>
 
-              {/* PDF Upload Section (only show for pdf_based tests) */}
+              {/* Department Selection (only for candidate tests) */}
+              {testData.target_role === 'candidate' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Department *
+                  </label>
+                  <select
+                    name="department_id"
+                    value={testData.department_id}
+                    onChange={handleTestDataChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="">Select a department</option>
+                    {departments.map((dept) => (
+                      <option key={dept.id} value={dept.id}>
+                        {dept.department_name}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    This test will only be visible to candidates in the selected department
+                  </p>
+                </div>
+              )}
+
+              {/* PDF Upload Section */}
               {testData.test_type === "pdf_based" && (
                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 bg-gray-50">
                   <div className="flex items-center gap-2 mb-3">
@@ -467,30 +489,17 @@ export default function CreateTest({ user, token, onBack }) {
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-blue-600 hover:text-blue-700 p-1"
-                            title="Preview PDF"
                           >
                             <ExternalLink size={18} />
                           </a>
                           <button
                             onClick={clearPdfAttachment}
                             className="text-red-600 hover:text-red-700 p-1"
-                            title="Remove PDF"
                           >
                             <X size={18} />
                           </button>
                         </div>
                       </div>
-
-                      {testData.thumbnail_url && (
-                        <img
-                          src={testData.thumbnail_url}
-                          alt="PDF Thumbnail"
-                          className="w-32 h-32 object-cover rounded border border-gray-200"
-                          onError={(e) => {
-                            e.target.style.display = 'none';
-                          }}
-                        />
-                      )}
                     </div>
                   )}
                 </div>
