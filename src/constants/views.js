@@ -12,6 +12,7 @@ export const VIEWS = {
   PROCTORING_EVENTS: "proctoring-events",
   INVITATION_ACCEPT: "invitation-accept",
   QUESTION_TYPE_MANAGER: "question-type-manager",
+  USER_MANAGEMENT: 'user-management', // ADD THIS LINE
 };
 
 export const API_BASE_URL = "http://localhost:5000";

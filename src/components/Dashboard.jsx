@@ -38,7 +38,7 @@ export default function Dashboard({ user, token, onLogout, onNavigate }) {
         // Employers/Admins see:
         // 1. Tests they created (my-tests)
         // 2. Tests they can take (available with target_role='employer')
-        
+
         const [myTestsRes, availableTestsRes] = await Promise.all([
           fetch(`${API_BASE_URL}/api/tests/my-tests`, {
             headers: { Authorization: `Bearer ${token}` },
@@ -56,24 +56,24 @@ export default function Dashboard({ user, token, onLogout, onNavigate }) {
 
         // Merge both lists, removing duplicates by ID
         const allTests = [...(myTestsData.tests || [])];
-        const myTestIds = new Set(allTests.map(t => t.id));
-        
+        const myTestIds = new Set(allTests.map((t) => t.id));
+
         // Add available tests that aren't already in myTests
         // Mark them so we know they're available to take
         if (availableTestsData.success && availableTestsData.tests) {
-          availableTestsData.tests.forEach(test => {
+          availableTestsData.tests.forEach((test) => {
             if (!myTestIds.has(test.id)) {
               allTests.push({
-                ...test, 
+                ...test,
                 is_available_to_take: true,
-                created_by_me: false
+                created_by_me: false,
               });
             }
           });
         }
 
         // Mark tests created by user
-        allTests.forEach(test => {
+        allTests.forEach((test) => {
           if (myTestIds.has(test.id)) {
             test.created_by_me = true;
           }
@@ -156,7 +156,9 @@ export default function Dashboard({ user, token, onLogout, onNavigate }) {
                   {tests.length}
                 </p>
                 <p className="text-sm text-green-700 mt-1">
-                  {user?.role === "candidate" ? "Ready to take" : "Created & Available"}
+                  {user?.role === "candidate"
+                    ? "Ready to take"
+                    : "Created & Available"}
                 </p>
               </div>
 
@@ -190,6 +192,13 @@ export default function Dashboard({ user, token, onLogout, onNavigate }) {
                         View All Results
                       </button>
                       <button
+                        onClick={() => onNavigate("user-management")}
+                        className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 flex items-center gap-2"
+                      >
+                        <Users size={20} />
+                        User Management
+                      </button>
+                      <button
                         onClick={() => onNavigate("question-type-manager")}
                         className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 flex items-center gap-2"
                       >
@@ -199,7 +208,7 @@ export default function Dashboard({ user, token, onLogout, onNavigate }) {
                     </>
                   )}
 
-                  {(user?.role === "admin") && (
+                  {user?.role === "admin" && (
                     <button
                       onClick={() => onNavigate("create-test")}
                       className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-2"
@@ -262,7 +271,10 @@ function TestCard({ test, user, userRole, onNavigate, onInvite, token }) {
 
   useEffect(() => {
     // Only fetch invitations if user created this test
-    if ((userRole === "employer" || userRole === "admin") && test.created_by_me) {
+    if (
+      (userRole === "employer" || userRole === "admin") &&
+      test.created_by_me
+    ) {
       fetchInvitationCount();
     }
   }, [test.id, userRole, test.created_by_me]);
@@ -329,12 +341,12 @@ function TestCard({ test, user, userRole, onNavigate, onInvite, token }) {
         <h4 className="font-semibold text-gray-900 text-lg">{test.title}</h4>
         {/* Show badges for test type and target */}
         <div className="flex flex-col gap-1">
-          {test.test_type === 'pdf_based' && (
+          {test.test_type === "pdf_based" && (
             <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
               PDF Test
             </span>
           )}
-          {test.target_role === 'employer' && (
+          {test.target_role === "employer" && (
             <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">
               For Staff
             </span>
@@ -346,7 +358,7 @@ function TestCard({ test, user, userRole, onNavigate, onInvite, token }) {
           )}
         </div>
       </div>
-      
+
       <p className="text-sm text-gray-600 mt-2 line-clamp-2">
         {test.description || "No description"}
       </p>
@@ -364,7 +376,9 @@ function TestCard({ test, user, userRole, onNavigate, onInvite, token }) {
           <p className="text-xs text-gray-500">By: {test.created_by_name}</p>
         )}
         {test.created_by_name && canTakeTest && (
-          <p className="text-xs text-gray-500">Created by: {test.created_by_name}</p>
+          <p className="text-xs text-gray-500">
+            Created by: {test.created_by_name}
+          </p>
         )}
         {userRole === "candidate" && test.is_completed && (
           <div className="flex items-center gap-2 text-sm text-green-600 font-medium">
@@ -382,7 +396,9 @@ function TestCard({ test, user, userRole, onNavigate, onInvite, token }) {
               <div className="space-y-2">
                 {test.is_completed ? (
                   <button
-                    onClick={() => handleNavigate("answer-review", test.id, user.id)}
+                    onClick={() =>
+                      handleNavigate("answer-review", test.id, user.id)
+                    }
                     className="w-full px-4 py-2 text-sm text-white bg-blue-600 rounded hover:bg-blue-700 font-medium flex items-center justify-center gap-2"
                   >
                     <FileText size={16} />
@@ -442,7 +458,9 @@ function TestCard({ test, user, userRole, onNavigate, onInvite, token }) {
                 </div>
 
                 <button
-                  onClick={() => handleNavigate("proctoring-events", test.id, null)}
+                  onClick={() =>
+                    handleNavigate("proctoring-events", test.id, null)
+                  }
                   className="w-full px-3 py-2 text-sm text-red-700 bg-red-50 rounded hover:bg-red-100"
                 >
                   View Proctoring Events
@@ -455,7 +473,9 @@ function TestCard({ test, user, userRole, onNavigate, onInvite, token }) {
           <div className="space-y-2">
             {test.is_completed ? (
               <button
-                onClick={() => handleNavigate("answer-review", test.id, user.id)}
+                onClick={() =>
+                  handleNavigate("answer-review", test.id, user.id)
+                }
                 className="w-full px-4 py-2 text-sm text-white bg-blue-600 rounded hover:bg-blue-700 font-medium flex items-center justify-center gap-2"
               >
                 <FileText size={16} />

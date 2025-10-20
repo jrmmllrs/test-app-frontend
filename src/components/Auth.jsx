@@ -47,7 +47,9 @@ export default function Auth({ onAuthSuccess }) {
       onAuthSuccess(data.user, data.token);
     } catch (err) {
       console.error("Auth error:", err);
-      setError("Connection error. Make sure backend is running on localhost:5000");
+      setError(
+        "Connection error. Make sure backend is running on localhost:5000"
+      );
     } finally {
       setLoading(false);
     }
@@ -79,17 +81,6 @@ export default function Auth({ onAuthSuccess }) {
                 onChange={handleChange}
                 required={!isLogin}
                 placeholder="John Doe"
-              />
-
-              <Select
-                label="Role"
-                name="role"
-                value={formData.role}
-                onChange={handleChange}
-                options={[
-                  { value: "candidate", label: "Candidate" },
-                  { value: "employer", label: "Employer" },
-                ]}
               />
             </>
           )}
